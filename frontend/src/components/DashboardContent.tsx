@@ -1,121 +1,94 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+// src/components/DashboardContent.jsx
+import { useQuery } from '@tanstack/react-query';
+import apiClient from '@/api/apiClient';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import KpiCard from '@/components/KpiCard';
-import TrendsChart from '@/components/TrendsChart';
-import FrequentQuestionsList from '@/components/FrequentQuestionsList';
-import ImprovementSuggestions from '@/components/ImprovementSuggestions';
-import UsageMeter from '@/components/UsageMeter';
-import { 
-  MessageSquare, 
-  Users, 
-  TrendingUp, 
-  Clock,
-  Sparkles
-} from 'lucide-react';
+import { MessageSquare, Users, TrendingUp, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const fetchDashboardData = async () => {
+  const { data } = await apiClient.get('/dashboard/');
+  return data;
+};
 
 const DashboardContent = () => {
-  // Mock data - replace with actual API calls
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['dashboardData'],
+    queryFn: fetchDashboardData,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <Skeleton className="h-8 w-1/4 mb-4" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+        </div>
+        <div className="grid gap-6 mt-6 lg:grid-cols-2">
+            <Skeleton className="h-80" />
+            <Skeleton className="h-80" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="flex items-center justify-center h-full p-8">
+            <div className="text-center">
+                <AlertTriangle className="mx-auto h-12 w-12 text-destructive"/>
+                <h2 className="mt-4 text-lg font-medium">Could not load dashboard</h2>
+                <p className="text-sm text-muted-foreground">{error.response?.data?.error || error.message}</p>
+            </div>
+        </div>
+    );
+  }
+
   const kpis = [
-    {
-      title: 'Total Chats',
-      value: '1,234',
-      change: '+12%',
-      trend: 'up' as const,
-      icon: MessageSquare,
-      description: 'conversations this month'
-    },
-    {
-      title: 'Active Users',
-      value: '892',
-      change: '+8%',
-      trend: 'up' as const,
-      icon: Users,
-      description: 'unique visitors chatting'
-    },
-    {
-      title: 'Resolution Rate',
-      value: '94%',
-      change: '+3%',
-      trend: 'up' as const,
-      icon: TrendingUp,
-      description: 'successfully resolved'
-    },
-    {
-      title: 'Avg Response Time',
-      value: '1.2s',
-      change: '-0.3s',
-      trend: 'up' as const,
-      icon: Clock,
-      description: 'lightning fast responses'
-    }
+    { title: 'Total Chats', value: data.kpis.total_chats, icon: MessageSquare },
+    { title: 'Resolution Rate', value: `${data.kpis.resolution_rate}%`, icon: CheckCircle },
+    { title: 'Flagged Tickets', value: data.kpis.flagged_tickets, icon: AlertTriangle },
+    { title: 'Active Users', value: 'N/A', icon: Users }, // Assuming this isn't from the backend yet
   ];
 
   return (
     <div className="flex-1 space-y-6 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Your AI agent's performance overview
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Sparkles className="h-4 w-4" />
-          Last updated: Just now
-        </div>
-      </div>
-
-      {/* Usage Meter */}
-      <UsageMeter />
-
-      {/* KPI Cards */}
+      <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, index) => (
-          <KpiCard key={index} {...kpi} />
+        {kpis.map((kpi) => (
+          <KpiCard change={''} trend={'up'} key={kpi.title} {...kpi} />
         ))}
       </div>
-
-      {/* Charts and Lists */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Trends Chart */}
-        <Card className="col-span-1 lg:col-span-1 shadow-card border-0 bg-gradient-card backdrop-blur-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Chat Volume Trends</CardTitle>
-            <CardDescription>
-              Daily conversations over the last 7 days
-            </CardDescription>
+            <CardDescription>Conversations over the last 7 days</CardDescription>
           </CardHeader>
           <CardContent>
-            <TrendsChart />
+             {/* Chart component can be built here using data.chat_volume_trends */}
+             <p className="text-sm text-muted-foreground">Chart UI to be implemented.</p>
           </CardContent>
         </Card>
-
-        {/* Frequent Questions */}
-        <Card className="shadow-card border-0 bg-gradient-card backdrop-blur-sm">
+        <Card>
           <CardHeader>
-            <CardTitle>Most Frequent Questions</CardTitle>
-            <CardDescription>
-              Top customer inquiries this week
-            </CardDescription>
+            <CardTitle>Frequent Questions</CardTitle>
+            <CardDescription>Top subjects from flagged tickets</CardDescription>
           </CardHeader>
-          <CardContent>
-            <FrequentQuestionsList />
+          <CardContent className="space-y-2">
+            {data.frequent_questions.length > 0 ? (
+                data.frequent_questions.map(q => (
+                    <div key={q.id} className="text-sm p-2 bg-muted rounded-md">{q.subject}</div>
+                ))
+            ) : (
+                <p className="text-sm text-muted-foreground">No flagged questions yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Improvement Suggestions */}
-      <Card className="shadow-card border-0 bg-gradient-card backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle>AI Improvement Suggestions</CardTitle>
-          <CardDescription>
-            Based on customer feedback and interaction patterns
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ImprovementSuggestions />
-        </CardContent>
-      </Card>
     </div>
   );
 };

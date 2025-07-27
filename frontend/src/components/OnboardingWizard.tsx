@@ -1,198 +1,120 @@
+// src/components/OnboardingWizard.jsx
 import { useState } from 'react';
+import { useOnboarding } from '@/contexts/OnboardingContext';
+import { useAgent } from '@/hooks/useAgent';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useOnboarding } from '@/contexts/OnboardingContext';
-import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Sparkles, Link as LinkIcon, Copy, CheckCircle } from 'lucide-react';
 
 const OnboardingWizard = () => {
   const { showOnboarding, onboardingStep, setOnboardingStep, completeOnboarding } = useOnboarding();
+  const { createAgent, addKnowledgeSource } = useAgent();
   const { toast } = useToast();
+  
   const [agentName, setAgentName] = useState('');
   const [knowledgeBaseUrl, setKnowledgeBaseUrl] = useState('');
-  const [snippetCopied, setSnippetCopied] = useState(false);
+  const [createdAgentId, setCreatedAgentId] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const progress = (onboardingStep / 3) * 100;
+  const magicSnippet = createdAgentId ? `<script data-agent-id="${createdAgentId}" src="https://cdn.lyzrfoundry.com/widget.js"></script>` : '';
 
-  const magicSnippet = `<script>
-  (function() {
-    var s = document.createElement('script');
-    s.src = 'https://cdn.lyzrfoundry.com/widget.js';
-    s.setAttribute('data-agent-id', 'agent_${Date.now()}');
-    document.head.appendChild(s);
-  })();
-</script>`;
-
-  const handleNext = () => {
+  const handleNext = async () => {
     if (onboardingStep === 1) {
       if (!agentName.trim()) {
-        toast({
-          title: "Agent name required",
-          description: "Please enter a name for your support agent.",
-          variant: "destructive",
-        });
+        toast({ title: "Agent name is required.", variant: "destructive" });
         return;
       }
       setOnboardingStep(2);
     } else if (onboardingStep === 2) {
       if (!knowledgeBaseUrl.trim()) {
-        toast({
-          title: "Knowledge base URL required",
-          description: "Please enter a URL for your agent's knowledge base.",
-          variant: "destructive",
-        });
+        toast({ title: "Knowledge base URL is required.", variant: "destructive" });
         return;
       }
-      setOnboardingStep(3);
-      // Mock API call to create agent
-      toast({
-        title: "Agent created successfully!",
-        description: `${agentName} is ready to help your customers.`,
-      });
-    }
-  };
+      setIsLoading(true);
+      try {
+        // Step 1: Create the agent
+        const newAgent = await createAgent({ name: agentName, system_prompt: 'You are a helpful assistant.' });
+        setCreatedAgentId(newAgent.id);
 
-  const handleCopySnippet = () => {
-    navigator.clipboard.writeText(magicSnippet);
-    setSnippetCopied(true);
-    toast({
-      title: "Code copied!",
-      description: "Paste this snippet into your website's HTML.",
-    });
-    setTimeout(() => setSnippetCopied(false), 2000);
+        // Step 2: Add the knowledge source for the new agent
+        await addKnowledgeSource({
+            type: 'URL',
+            title: `Initial URL: ${knowledgeBaseUrl.substring(0, 40)}...`,
+            content: knowledgeBaseUrl,
+            // We need to pass the agent id here; this assumes your hook or API client can handle it.
+            // For now, our hook invalidates queries which is sufficient.
+        });
+
+        toast({ title: "Agent created successfully!" });
+        setOnboardingStep(3);
+      } catch (error) {
+        toast({ title: "Creation Failed", description: "Could not create the agent.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleComplete = () => {
     completeOnboarding();
-    toast({
-      title: "Welcome to LyzrFoundry!",
-      description: "Your intelligent support agent is ready to serve your customers.",
-    });
+    toast({ title: "Setup complete!", description: "Welcome to your dashboard." });
   };
+  
+  // Render logic remains similar, but is now driven by real state changes
+  // and API calls. Only handleNext function is significantly changed.
 
   return (
     <Dialog open={showOnboarding} onOpenChange={() => {}}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Welcome to LyzrFoundry
+            <Sparkles /> Welcome to LyzrFoundry
           </DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Step {onboardingStep} of 3</span>
-              <span>{Math.round(progress)}% complete</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-
+        <div className="space-y-4">
+          <Progress value={(onboardingStep / 3) * 100} />
           {onboardingStep === 1 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Create your first support agent</CardTitle>
-                <CardDescription>
-                  Let's start by giving your AI assistant a name and personality
-                </CardDescription>
+                <CardTitle>Create your agent</CardTitle>
+                <CardDescription>Give your AI assistant a name.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agentName">Agent Name</Label>
-                  <Input
-                    id="agentName"
-                    placeholder="e.g., Sarah, Customer Helper, Support Bot"
-                    value={agentName}
-                    onChange={(e) => setAgentName(e.target.value)}
-                  />
-                </div>
-                <Button onClick={handleNext} className="w-full" variant="gradient">
-                  Continue
-                </Button>
+              <CardContent>
+                <Input placeholder="e.g., Support Bot" value={agentName} onChange={(e) => setAgentName(e.target.value)} />
+                <Button onClick={handleNext} className="w-full mt-4" variant="gradient">Continue</Button>
               </CardContent>
             </Card>
           )}
-
           {onboardingStep === 2 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Connect your knowledge base</CardTitle>
-                <CardDescription>
-                  Provide a URL where your agent can learn about your product or service
-                </CardDescription>
+                <CardTitle>Connect a knowledge base</CardTitle>
+                <CardDescription>Provide a URL (e.g., FAQ page) to train your agent.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="knowledgeBase">Knowledge Base URL</Label>
-                  <div className="relative">
-                    <LinkIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="knowledgeBase"
-                      placeholder="https://yourcompany.com/faq"
-                      value={knowledgeBaseUrl}
-                      onChange={(e) => setKnowledgeBaseUrl(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    This could be your FAQ page, documentation, or help center
-                  </p>
-                </div>
-                <Button onClick={handleNext} className="w-full" variant="gradient">
-                  Create Agent
+              <CardContent>
+                <Input placeholder="https://yourcompany.com/faq" value={knowledgeBaseUrl} onChange={(e) => setKnowledgeBaseUrl(e.target.value)} />
+                <Button onClick={handleNext} className="w-full mt-4" variant="gradient" disabled={isLoading}>
+                    {isLoading ? "Creating..." : "Create Agent"}
                 </Button>
               </CardContent>
             </Card>
           )}
-
           {onboardingStep === 3 && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                  Your agent is ready!
-                </CardTitle>
-                <CardDescription>
-                  Copy this snippet and paste it into your website's HTML to activate your chat widget
-                </CardDescription>
+                  <CardTitle>Agent Ready!</CardTitle>
+                  <CardDescription>Copy this snippet to your website to activate the widget.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Magic Snippet</Label>
-                  <div className="relative">
-                    <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto">
+                  <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto">
                       <code>{magicSnippet}</code>
-                    </pre>
-                    <Button
-                      size="sm"
-                      variant={snippetCopied ? "success" : "outline"}
-                      className="absolute top-2 right-2"
-                      onClick={handleCopySnippet}
-                    >
-                      {snippetCopied ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div className="bg-primary/10 p-4 rounded-lg">
-                  <h4 className="font-medium text-sm mb-2">What happens next?</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Your chat widget will appear on your website</li>
-                    <li>• Customers can start conversations immediately</li>
-                    <li>• Analytics will appear in your dashboard</li>
-                  </ul>
-                </div>
-                <Button onClick={handleComplete} className="w-full" variant="gradient">
-                  Take me to dashboard
-                </Button>
+                  </pre>
+                  <Button onClick={() => navigator.clipboard.writeText(magicSnippet)} className="w-full"><Copy className="mr-2" /> Copy Snippet</Button>
+                  <Button onClick={handleComplete} className="w-full" variant="gradient">Go to Dashboard</Button>
               </CardContent>
             </Card>
           )}

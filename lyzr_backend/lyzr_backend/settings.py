@@ -5,23 +5,21 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
-DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-
-    # Our apps
+    'channels',
+    'storages',
     'core',
 ]
 
@@ -53,6 +51,7 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = 'lyzr_backend.asgi.application'
 WSGI_APPLICATION = 'lyzr_backend.wsgi.application'
 
 DATABASES = {
@@ -63,59 +62,57 @@ DATABASES = {
     )
 }
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-
-# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
-# Default primary key field type
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-
-
-AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default=None)
-AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None)
-AZURE_CONNECTION_STRING = config('AZURE_CONNECTION_STRING', default=None)
-AZURE_CONTAINER = config('AZURE_CONTAINER', default=None)
-
-if AZURE_ACCOUNT_NAME:
-    DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
-    AZURE_URL = f'https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/'
-    MEDIA_URL = AZURE_URL + f'{AZURE_CONTAINER}/'
-else:
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
-    
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:8000",
 ]
 
+CELERY_BROKER_URL = config('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": { "hosts": [config('CHANNEL_LAYER_REDIS_URL')] },
+    },
+}
+
 AUTH_USER_MODEL = 'core.User'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    'DEFAULT_AUTHENTICATION_CLASSES': ('rest_framework_simplejwt.authentication.JWTAuthentication',),
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
 }
+
+# --- LYZR API CONFIGURATION ---
+LYZR_API_KEY = config('LYZR_API_KEY')
+LYZR_AGENT_API_BASE_URL = config('LYZR_AGENT_API_BASE_URL')
+LYZR_RAG_API_BASE_URL = config('LYZR_RAG_API_BASE_URL')
+
+# --- LYZR CREDENTIAL IDs ---
+LYZR_LLM_CREDENTIAL_ID = config('LYZR_LLM_CREDENTIAL_ID')
+LYZR_EMBEDDING_CREDENTIAL_ID = config('LYZR_EMBEDDING_CREDENTIAL_ID')
+LYZR_VECTOR_DB_CREDENTIAL_ID = config('LYZR_VECTOR_DB_CREDENTIAL_ID')

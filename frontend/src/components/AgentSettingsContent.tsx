@@ -1,148 +1,106 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+// src/components/AgentSettingsContent.jsx
+import { useState, useEffect } from 'react';
+import { useAgents } from '@/hooks/useAgents';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from "@/components/ui/slider";
+import { Skeleton } from '@/components/ui/skeleton';
+import { Bot, Save } from 'lucide-react';
 import KnowledgeBaseManager from './KnowledgeBaseManager';
-import AdvancedWidgetCustomization from './AdvancedWidgetCustomization';
-import PredefinedPrompts from './PredefinedPrompts';
-import { 
-  Settings, 
-  Bot, 
-  Code,
-  Save
-} from 'lucide-react';
 
-const AgentSettingsContent = () => {
+const AgentSettingsContent = ({ agent }) => {
+  const { updateAgent } = useAgents();
   const { toast } = useToast();
-  const [agentName, setAgentName] = useState('Sarah');
-  const [isActive, setIsActive] = useState(true);
+  
+  const [name, setName] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [model, setModel] = useState('gpt-3.5-turbo');
+  const [temperature, setTemperature] = useState([0.2]);
+
+  useEffect(() => {
+    if (agent) {
+      setName(agent.name || '');
+      setSystemPrompt(agent.system_prompt || '');
+      setModel(agent.model || 'gpt-3.5-turbo');
+      setTemperature([agent.temperature || 0.2]);
+    }
+  }, [agent]);
 
   const handleSave = () => {
-    // Mock save - replace with actual API call
-    toast({
-      title: "Settings saved",
-      description: "Your agent configuration has been updated successfully.",
+    if (!agent) return;
+    updateAgent({
+      id: agent.id,
+      name,
+      system_prompt: systemPrompt,
+      model,
+      temperature: temperature[0],
+    }, {
+      onSuccess: () => toast({ title: "Settings Saved" }),
+      onError: (err) => toast({ title: "Save Failed", description: err.message, variant: "destructive" }),
     });
   };
 
-  const magicSnippet = `<script>
-  (function() {
-    var s = document.createElement('script');
-    s.src = 'https://cdn.lyzrfoundry.com/widget.js';
-    s.setAttribute('data-agent-id', 'agent_12345');
-    document.head.appendChild(s);
-  })();
-</script>`;
+  if (!agent) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Agent Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Skeleton className="h-10 w-full mb-4" />
+                <Skeleton className="h-24 w-full" />
+            </CardContent>
+        </Card>
+    );
+  }
 
   return (
-    <div className="flex-1 space-y-6 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agent Settings</h1>
-          <p className="text-muted-foreground">
-            Configure your AI support agent
-          </p>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Bot /> Agent Configuration</CardTitle>
+        <CardDescription>Fine-tune the behavior and knowledge of '{agent.name}'.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="agentName">Agent Name</Label>
+          <Input id="agentName" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={isActive ? "default" : "secondary"}>
-            {isActive ? "Active" : "Inactive"}
-          </Badge>
+        <div className="space-y-2">
+          <Label htmlFor="systemPrompt">Agent Personality (System Prompt)</Label>
+          <Textarea id="systemPrompt" value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={6} />
         </div>
-      </div>
-
-      {/* Basic Configuration */}
-      <Card className="shadow-card border-0 bg-gradient-card backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5" />
-            Basic Configuration
-          </CardTitle>
-          <CardDescription>
-            Core settings for your AI agent
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="agentName">Agent Name</Label>
-            <Input
-              id="agentName"
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
-              placeholder="e.g., Sarah, Support Bot"
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Agent Status</Label>
-              <p className="text-sm text-muted-foreground">
-                Enable or disable your agent
-              </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label>Language Model</Label>
+                <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                        <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
-            <Switch
-              checked={isActive}
-              onCheckedChange={setIsActive}
-            />
-          </div>
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+                <Label>Temperature: {temperature[0]}</Label>
+                <Slider defaultValue={[0.2]} value={temperature} max={1} step={0.1} onValueChange={setTemperature} />
+                <p className="text-xs text-muted-foreground">Lower is more predictable, higher is more creative.</p>
+            </div>
+        </div>
 
-      {/* Knowledge Base Management */}
-      <KnowledgeBaseManager />
-
-      {/* Predefined Prompts */}
-      <PredefinedPrompts />
-
-      {/* Advanced Widget Customization */}
-      <AdvancedWidgetCustomization />
-
-      {/* Installation Code */}
-      <Card className="shadow-card border-0 bg-gradient-card backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Code className="h-5 w-5" />
-            Installation Code
-          </CardTitle>
-          <CardDescription>
-            Copy this snippet and paste it into your website's HTML
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="relative">
-            <pre className="bg-muted p-4 rounded-lg text-xs overflow-x-auto">
-              <code>{magicSnippet}</code>
-            </pre>
-            <Button
-              size="sm"
-              variant="outline"
-              className="absolute top-2 right-2"
-              onClick={() => {
-                navigator.clipboard.writeText(magicSnippet);
-                toast({
-                  title: "Code copied!",
-                  description: "Installation snippet copied to clipboard.",
-                });
-              }}
-            >
-              Copy
+        <div className="flex justify-end">
+            <Button onClick={handleSave} variant="gradient">
+              <Save className="mr-2 h-4 w-4" /> Save Settings
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} variant="gradient" size="lg">
-          <Save className="h-4 w-4" />
-          Save Changes
-        </Button>
-      </div>
-    </div>
+        </div>
+        
+        <KnowledgeBaseManager agent={agent} />
+      </CardContent>
+    </Card>
   );
 };
 

@@ -1,3 +1,8 @@
 from django.contrib import admin
+from .models import User,KnowledgeSource, Agent, Conversation, Message
 
-# Register your models here.
+admin.site.register(User) 
+admin.site.register(KnowledgeSource)
+admin.site.register(Agent)
+admin.site.register(Conversation)
+admin.site.register(Message)

@@ -1,192 +1,104 @@
+// src/components/KnowledgeBaseManager.jsx
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAgents } from '@/hooks/useAgents';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  BookOpen, 
-  Plus, 
-  X, 
-  Upload, 
-  Link as LinkIcon,
-  FileText,
-  Globe
-} from 'lucide-react';
+import { BookOpen, Plus, X, Upload, Globe, FileText, Loader2 } from 'lucide-react';
 
-interface KnowledgeSource {
-  id: string;
-  type: 'url' | 'document' | 'faq';
-  title: string;
-  content: string;
-}
-
-const KnowledgeBaseManager = () => {
+const KnowledgeBaseManager = ({ agent }) => {
+  const { addKnowledgeSource, deleteKnowledgeSource } = useAgents();
   const { toast } = useToast();
-  const [sources, setSources] = useState<KnowledgeSource[]>([
-    { id: '1', type: 'url', title: 'Company FAQ', content: 'https://company.com/faq' }
-  ]);
+  
   const [newUrl, setNewUrl] = useState('');
-  const [newFaqQuestion, setNewFaqQuestion] = useState('');
-  const [newFaqAnswer, setNewFaqAnswer] = useState('');
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
 
-  const addUrlSource = () => {
-    if (!newUrl) return;
-    const newSource: KnowledgeSource = {
-      id: Date.now().toString(),
-      type: 'url',
-      title: `URL Source ${sources.filter(s => s.type === 'url').length + 1}`,
-      content: newUrl
-    };
-    setSources([...sources, newSource]);
-    setNewUrl('');
-    toast({ title: "URL added to knowledge base" });
+  const handleAddUrl = () => {
+    if (!newUrl || !agent) return;
+    setIsAddingUrl(true);
+    addKnowledgeSource({
+      agentId: agent.id,
+      sourceData: {
+        type: 'URL',
+        title: `URL: ${newUrl.substring(0, 50)}...`,
+        content: newUrl,
+      }
+    }, { 
+        onSuccess: () => { setNewUrl(''); toast({ title: "URL source added successfully."}); },
+        onError: () => toast({ title: "Failed to add URL.", variant: "destructive"}),
+        onSettled: () => setIsAddingUrl(false),
+    });
   };
 
-  const addFaqSource = () => {
-    if (!newFaqQuestion || !newFaqAnswer) return;
-    const newSource: KnowledgeSource = {
-      id: Date.now().toString(),
-      type: 'faq',
-      title: newFaqQuestion,
-      content: newFaqAnswer
-    };
-    setSources([...sources, newSource]);
-    setNewFaqQuestion('');
-    setNewFaqAnswer('');
-    toast({ title: "FAQ added to knowledge base" });
-  };
-
-  const removeSource = (id: string) => {
-    setSources(sources.filter(s => s.id !== id));
-    toast({ title: "Knowledge source removed" });
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !agent) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'FILE');
+    formData.append('title', file.name);
     
-    const newSource: KnowledgeSource = {
-      id: Date.now().toString(),
-      type: 'document',
-      title: file.name,
-      content: `Uploaded: ${file.name} (${file.size} bytes)`
-    };
-    setSources([...sources, newSource]);
-    toast({ title: "Document uploaded to knowledge base" });
+    addKnowledgeSource({ agentId: agent.id, sourceData: formData }, { 
+        onSuccess: () => toast({ title: "File uploaded successfully." }),
+        onError: () => toast({ title: "File upload failed.", variant: "destructive" })
+    });
   };
 
-  const getSourceIcon = (type: string) => {
-    switch (type) {
-      case 'url': return <Globe className="h-4 w-4" />;
-      case 'document': return <FileText className="h-4 w-4" />;
-      case 'faq': return <BookOpen className="h-4 w-4" />;
-      default: return <FileText className="h-4 w-4" />;
-    }
+  const handleRemoveSource = (sourceId) => {
+    if (!agent) return;
+    deleteKnowledgeSource({ agentId: agent.id, sourceId }, {
+      onSuccess: () => toast({ title: "Source removed." }),
+    });
+  };
+  
+  const getSourceIcon = (type) => {
+    if (type === 'URL') return <Globe className="h-4 w-4" />;
+    if (type === 'FILE') return <FileText className="h-4 w-4" />;
+    if (type === 'FAQ') return <BookOpen className="h-4 w-4" />;
+    return <FileText className="h-4 w-4" />;
   };
 
   return (
-    <Card className="shadow-card border-0 bg-gradient-card backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BookOpen className="h-5 w-5" />
-          Knowledge Base Management
-        </CardTitle>
-        <CardDescription>
-          Add multiple sources to train your AI agent
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Current Sources */}
-        <div className="space-y-3">
-          <Label>Current Knowledge Sources</Label>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {sources.map((source) => (
-              <div key={source.id} className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                {getSourceIcon(source.type)}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{source.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{source.content}</p>
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  {source.type}
-                </Badge>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => removeSource(source.id)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+    <div className="pt-6 border-t">
+      <h3 className="text-lg font-medium">Knowledge Base</h3>
+      <p className="text-sm text-muted-foreground mb-4">Add or remove data sources to train your agent.</p>
+      
+      <div className="space-y-4">
+        <div className="space-y-2">
+          {agent.knowledge_sources?.map((source) => (
+            <div key={source.id} className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              {getSourceIcon(source.type)}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{source.title}</p>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Add URL */}
-        <div className="space-y-2">
-          <Label>Add Website/URL</Label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <LinkIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
-                placeholder="https://yoursite.com/docs"
-                className="pl-10"
-              />
+              <Badge variant="outline" className="text-xs">{source.type}</Badge>
+              <Badge variant={source.status === 'COMPLETED' ? 'success' : 'secondary'}>{source.status}</Badge>
+              <Button size="icon" variant="ghost" onClick={() => handleRemoveSource(source.id)}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <Button onClick={addUrlSource} size="sm">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+          ))}
+        </div>
+        
+        <div className="flex gap-2">
+          <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://yoursite.com/docs" />
+          <Button onClick={handleAddUrl} disabled={isAddingUrl}>
+            {isAddingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add URL
+          </Button>
         </div>
 
-        {/* Upload Document */}
-        <div className="space-y-2">
-          <Label>Upload Document</Label>
-          <div className="border-2 border-dashed border-muted rounded-lg p-4 text-center">
-            <input
-              type="file"
-              id="document-upload"
-              onChange={handleFileUpload}
-              accept=".pdf,.doc,.docx,.txt,.md"
-              className="hidden"
-            />
-            <label htmlFor="document-upload" className="cursor-pointer">
-              <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Click to upload PDF, DOC, TXT, or MD files
-              </p>
-            </label>
-          </div>
+        <div>
+          <label htmlFor="file-upload" className="w-full block text-center p-4 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
+            <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
+            <span className="mt-2 block text-sm font-semibold">Upload a Document (PDF, TXT, etc.)</span>
+          </label>
+          <input id="file-upload" type="file" className="hidden" onChange={handleFileUpload} />
         </div>
-
-        {/* Add Custom FAQ */}
-        <div className="space-y-2">
-          <Label>Add Custom FAQ</Label>
-          <div className="space-y-2">
-            <Input
-              value={newFaqQuestion}
-              onChange={(e) => setNewFaqQuestion(e.target.value)}
-              placeholder="What is your return policy?"
-            />
-            <Textarea
-              value={newFaqAnswer}
-              onChange={(e) => setNewFaqAnswer(e.target.value)}
-              placeholder="Our return policy allows..."
-              rows={2}
-            />
-            <Button onClick={addFaqSource} size="sm" className="w-full">
-              <Plus className="h-4 w-4" />
-              Add FAQ
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
