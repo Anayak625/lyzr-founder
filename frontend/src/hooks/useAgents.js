@@ -1,4 +1,3 @@
-// src/hooks/useAgents.js
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 
@@ -33,7 +32,7 @@ const deleteKnowledgeSource = async ({ agentId, sourceId }) => {
 };
 
 // --- Main Hook ---
-export const useAgents = () => {
+const useAgents = () => {
   const queryClient = useQueryClient();
 
   // Query to get all agents for the user
@@ -81,8 +80,10 @@ export const useAgents = () => {
     isLoading,
     error,
     createAgent: createAgentMutation.mutateAsync,
-    updateAgent: updateAgentMutation.mutate,
-    addKnowledgeSource: addKnowledgeSourceMutation.mutate,
-    deleteKnowledgeSource: deleteKnowledgeSourceMutation.mutate,
+    updateAgent: updateAgentMutation.mutateAsync,
+    addKnowledgeSource: addKnowledgeSourceMutation.mutateAsync,
+    deleteKnowledgeSource: deleteKnowledgeSourceMutation.mutateAsync,
   };
 };
+
+export default useAgents;

@@ -1,7 +1,7 @@
 // src/components/OnboardingWizard.jsx
 import { useState } from 'react';
 import { useOnboarding } from '@/contexts/OnboardingContext';
-import { useAgent } from '@/hooks/useAgent';
+import useAgents from '../hooks/useAgents'; // Corrected: import useAgents (plural)
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Sparkles, Link as LinkIcon, Copy, CheckCircle } from 'lucide-react';
 
 const OnboardingWizard = () => {
   const { showOnboarding, onboardingStep, setOnboardingStep, completeOnboarding } = useOnboarding();
-  const { createAgent, addKnowledgeSource } = useAgent();
+  const { createAgent, addKnowledgeSource } = useAgents(); // Corrected: useAgents()
   const { toast } = useToast();
   
   const [agentName, setAgentName] = useState('');
@@ -41,18 +41,20 @@ const OnboardingWizard = () => {
         setCreatedAgentId(newAgent.id);
 
         // Step 2: Add the knowledge source for the new agent
+        // Corrected: The payload now matches the hook's signature { agentId, sourceData }
         await addKnowledgeSource({
-            type: 'URL',
-            title: `Initial URL: ${knowledgeBaseUrl.substring(0, 40)}...`,
-            content: knowledgeBaseUrl,
-            // We need to pass the agent id here; this assumes your hook or API client can handle it.
-            // For now, our hook invalidates queries which is sufficient.
+            agentId: newAgent.id,
+            sourceData: {
+                type: 'URL',
+                title: `Initial URL: ${knowledgeBaseUrl.substring(0, 40)}...`,
+                content: knowledgeBaseUrl,
+            }
         });
 
         toast({ title: "Agent created successfully!" });
         setOnboardingStep(3);
       } catch (error) {
-        toast({ title: "Creation Failed", description: "Could not create the agent.", variant: "destructive" });
+        toast({ title: "Creation Failed", description: "Could not create the agent or add the knowledge source.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
@@ -63,9 +65,6 @@ const OnboardingWizard = () => {
     completeOnboarding();
     toast({ title: "Setup complete!", description: "Welcome to your dashboard." });
   };
-  
-  // Render logic remains similar, but is now driven by real state changes
-  // and API calls. Only handleNext function is significantly changed.
 
   return (
     <Dialog open={showOnboarding} onOpenChange={() => {}}>

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useNavigate } from 'react-router-dom';
-import { useActiveAgent } from '@/contexts/Active-agent-context';
+import useActiveAgent from '@/contexts/Active-agent-context';
 
 import OnboardingWizard from '@/components/OnboardingWizard';
 import Sidebar from '@/components/Sidebar';

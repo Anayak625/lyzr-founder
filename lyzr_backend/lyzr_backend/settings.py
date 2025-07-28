@@ -1,3 +1,5 @@
+# lyzr_backend/settings.py
+
 from pathlib import Path
 from decouple import config
 import dj_database_url
@@ -6,6 +8,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
+
+AZURE_CONNECTION_STRING = config('AZURE_CONNECTION_STRING')
+AZURE_CONTAINER = config('AZURE_CONTAINER')
+# ---------------------------------------------
 
 INSTALLED_APPS = [
     'daphne',
@@ -16,6 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_nested',
     'rest_framework_simplejwt',
     'corsheaders',
     'channels',
@@ -79,7 +86,10 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
+
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
     "http://127.0.0.1:8000",

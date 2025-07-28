@@ -24,7 +24,7 @@ const AgentPlayground = ({ agent }) => {
     }]);
 
     const sessionId = `playground_session_${agent.id}_${Date.now()}`;
-    const wsUrl = `${process.env.REACT_APP_WEBSOCKET_BASE_URL}/chat/${agent.id}/?${sessionId}`;
+    const wsUrl = `${import.meta.env.VITE_REACT_APP_WEBSOCKET_BASE_URL}/chat/${agent.id}/?${sessionId}`;
     
     webSocket.current = new WebSocket(wsUrl);
 

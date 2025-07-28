@@ -1,4 +1,3 @@
-// src/contexts/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiClient from '@/api/apiClient';
 import { jwtDecode } from 'jwt-decode';

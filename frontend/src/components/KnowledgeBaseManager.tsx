@@ -1,6 +1,6 @@
 // src/components/KnowledgeBaseManager.jsx
 import { useState } from 'react';
-import { useAgents } from '@/hooks/useAgents';
+import useAgents from '@/hooks/useAgents';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

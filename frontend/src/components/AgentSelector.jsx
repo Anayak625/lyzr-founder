@@ -1,7 +1,7 @@
 // src/components/AgentSelector.jsx
 import React, { useState } from 'react';
-import { useActiveAgent } from '@/contexts/ActiveAgentContext';
-import { useAgents } from '@/hooks/useAgents';
+import useActiveAgent from '../contexts/Active-agent-context';
+import useAgents from '@/hooks/useAgents';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,

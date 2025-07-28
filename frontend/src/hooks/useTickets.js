@@ -1,4 +1,3 @@
-// src/hooks/useTickets.js
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 

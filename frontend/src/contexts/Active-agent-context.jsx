@@ -1,16 +1,16 @@
-// src/contexts/Active-agent-context.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAgents } from '@/hooks/useAgents'; // We will create this hook next
+import { createContext, useContext, useState, useEffect } from 'react';
+import useAgents from '../hooks/useAgents';
 
 const ActiveAgentContext = createContext(undefined);
 
-export const useActiveAgent = () => {
+const useActiveAgent = () => {
   const context = useContext(ActiveAgentContext);
   if (context === undefined) {
     throw new Error('useActiveAgent must be used within an ActiveAgentProvider');
   }
   return context;
 };
+export default useActiveAgent;
 
 export const ActiveAgentProvider = ({ children }) => {
   const { agents, isLoading } = useAgents();

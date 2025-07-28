@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 import uuid
 from django.core.validators import MinValueValidator, MaxValueValidator
+from lyzr_backend.storages import source_storage
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
@@ -13,7 +14,7 @@ class User(AbstractUser):
 
 class Agent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='agent')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='agents')
     lyzr_agent_id = models.CharField(max_length=255, blank=True, null=True, unique=True, help_text="The agent ID from the Lyzr Agent API")
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
@@ -23,6 +24,7 @@ class Agent(models.Model):
     model = models.CharField(max_length=50, choices=LyzrModel.choices, default=LyzrModel.GPT_3_5_TURBO)
     system_prompt = models.TextField(blank=True, default='You are a helpful customer support assistant.')
     temperature = models.FloatField(default=0.7, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
+    top_p = models.FloatField(default=1.0, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
     widget_settings = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self): return f"Agent '{self.name}' for {self.user.email}"
@@ -50,7 +52,7 @@ class KnowledgeSource(models.Model):
     type = models.CharField(max_length=10, choices=SourceType.choices)
     title = models.CharField(max_length=255)
     content = models.TextField(blank=True)
-    file = models.FileField(upload_to='lyzr-db/', blank=True, null=True)
+    file = models.FileField(storage=source_storage(),upload_to='', blank=True, null=True)
     status = models.CharField(max_length=10, choices=IndexingStatus.choices, default=IndexingStatus.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self): return f"{self.get_type_display()} source for {self.knowledge_base.agent.name}"
@@ -81,5 +83,6 @@ class Message(models.Model):
     content = models.TextField()
     feedback = models.CharField(max_length=10, choices=Feedback.choices, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
-    class Meta: ordering = ['created_at']
+    class Meta:
+        ordering = ['created_at']
     def __str__(self): return f"Message from {self.sender_type} in Conversation {self.conversation.id}"

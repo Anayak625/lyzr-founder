@@ -4,6 +4,7 @@ from channels.db import database_sync_to_async
 from .models import Agent, KnowledgeBase, Conversation, Message
 from .tasks import make_lyzr_request
 from django.conf import settings
+import uuid
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -31,15 +32,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def handle_user_message(self, message_content):
         await self.save_message(sender_type=Message.Sender.USER, content=message_content)
         try:
+            # Note: Using v3 endpoint as per your examples
             endpoint = "inference/chat/"
-            payload = { "agent_id": self.agent.lyzr_agent_id, "session_id": str(self.conversation.id), "message": message_content, "assets": [self.kb.rag_config_id] }
+            payload = { 
+                "agent_id": self.agent.lyzr_agent_id, 
+                "session_id": str(self.conversation.id), 
+                "message": message_content, 
+                # The 'assets' key should contain the RAG config ID
+                "assets": [self.kb.rag_config_id] 
+            }
             api_response_data = await database_sync_to_async(make_lyzr_request)(settings.LYZR_AGENT_API_BASE_URL, 'POST', endpoint, json=payload)
-            ai_response_content = api_response_data.get("choices", [{}])[0].get("message", {}).get("content", "Sorry, I could not process that.")
+            
+            # Parsing response based on your API example
+            ai_response_content = api_response_data.get("agent_response", "Sorry, I could not process that.")
             ai_message = await self.save_message(sender_type=Message.Sender.AI, content=ai_response_content)
-            await self.channel_layer.group_send(self.conversation_group_name, {'type': 'chat_message', 'message': ai_response_content, 'message_id': str(ai_message.id), 'sender': 'AI'})
+            
+            await self.channel_layer.group_send(self.conversation_group_name, {
+                'type': 'chat_message', 
+                'message': ai_response_content, 
+                'message_id': str(ai_message.id), 
+                'sender': 'AI'
+            })
         except Exception as e:
             print(f"Error during chat inference: {e}")
-            await self.channel_layer.group_send(self.conversation_group_name, {'type': 'chat_message', 'message': "An error occurred.", 'sender': 'AI', 'error': True})
+            await self.channel_layer.group_send(self.conversation_group_name, {
+                'type': 'chat_message', 
+                'message': "An error occurred while processing your request.", 
+                'sender': 'AI', 'error': True
+            })
 
     async def chat_message(self, event): await self.send(text_data=json.dumps(event))
 
@@ -64,5 +84,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_feedback(self, message_id, feedback_value):
-        feedback = Message.Feedback.POSITIVE if feedback_value == 'positive' else Message.Feedback.NEGATIVE
-        Message.objects.filter(id=message_id, conversation__agent=self.agent).update(feedback=feedback)
+        try:
+            msg_id = uuid.UUID(message_id)
+            feedback = Message.Feedback.POSITIVE if feedback_value == 'positive' else Message.Feedback.NEGATIVE
+            Message.objects.filter(id=msg_id, conversation__agent=self.agent).update(feedback=feedback)
+        except (ValueError, Message.DoesNotExist):
+            print(f"Could not save feedback for invalid message_id: {message_id}")
