@@ -37,19 +37,66 @@ class AgentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
 
     def get_queryset(self):
-        return Agent.objects.select_related('knowledge_base', 'user').prefetch_related('knowledge_base__sources').filter(user=self.request.user)
+        # Prefetch related data to optimize database queries
+        return Agent.objects.select_related(
+            'knowledge_base', 'user'
+        ).prefetch_related(
+            'knowledge_base__sources'
+        ).filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        try:
-            with transaction.atomic():
-                agent = serializer.save(user=self.request.user)
-                valid_collection_name = f"LyzrAgent{agent.id.hex}"
-                KnowledgeBase.objects.create(agent=agent, collection_name=valid_collection_name)
-            create_lyzr_stack_task.delay(agent.id)
-        except Exception as e:
-            logger.error(f"Agent creation failed for user {self.request.user.email}: {e}")
-            raise serializers.ValidationError({"detail": "Failed to create agent and its knowledge base."})
+        """
+        Atomically create an Agent, its KnowledgeBase, and a default
+        KnowledgeSource with initial instructions. Then, trigger Celery tasks
+        to build the Lyzr stack and index the new source.
+        """
+        
+        # This is the default text that will be added to every new agent's knowledge base.
+        DEFAULT_KNOWLEDGE_TEXT = """
+Your primary role is to be a helpful and friendly customer support assistant for our website.
 
+Key Instructions:
+1.  **Greeting**: Always start the conversation with a warm and friendly greeting.
+2.  **Source of Truth**: Your answers must be based exclusively on the information provided in the documents within your knowledge base.
+3.  **Handling Unknowns**: If a user asks a question and the answer is not in your documents, you MUST state that you cannot find the answer. Do not invent information. Instead, offer to connect them with a human support agent. A good response would be: "I'm sorry, I can't find the answer to that in my documents. Would you like me to connect you with a member of our support team?"
+4.  **Tone**: Maintain a professional, positive, and helpful tone throughout the conversation.
+5.  **Clarity**: Keep your responses clear, concise, and easy to understand.
+"""
+        
+        try:
+            # Use a database transaction to ensure all creations succeed or fail together.
+            with transaction.atomic():
+                # 1. Save the new agent instance
+                agent = serializer.save(user=self.request.user)
+                
+                # 2. Create the associated Knowledge Base for the agent
+                valid_collection_name = f"task_{agent.id.hex[:11]}"
+                kb = KnowledgeBase.objects.create(
+                    agent=agent, 
+                    collection_name=valid_collection_name
+                )
+                
+                # 3. Create the default knowledge source with the instructions
+                default_source = KnowledgeSource.objects.create(
+                    knowledge_base=kb,
+                    type=KnowledgeSource.SourceType.TEXT,
+                    title="Default Support Instructions",
+                    content=DEFAULT_KNOWLEDGE_TEXT
+                )
+            
+            # 4. After the transaction is successful, queue the background tasks.
+            # This task creates the agent and RAG config on the Lyzr platform.
+            create_lyzr_stack_task.delay(agent.id)
+            
+            # This new task indexes our default instructions immediately.
+            index_knowledge_source_task.delay(default_source.id)
+
+        except Exception as e:
+            logger.error(f"Agent and Knowledge Base creation failed for user {self.request.user.email}: {e}")
+            # If anything goes wrong, raise a validation error to inform the frontend.
+            raise serializers.ValidationError({"detail": "Failed to create the agent and its default knowledge base."})
+        
+        
 class KnowledgeSourceViewSet(viewsets.ModelViewSet):
     serializer_class = KnowledgeSourceSerializer
     permission_classes = [permissions.IsAuthenticated, IsAgentOwner]

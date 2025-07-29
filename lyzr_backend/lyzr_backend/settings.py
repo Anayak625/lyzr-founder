@@ -90,7 +90,7 @@ AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME')
 AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY')
 AZURE_CONTAINER = config('AZURE_CONTAINER', default='lyzr-db')
 
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000,http://127.0.0.1:3000').split(',')
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:8080,http://127.0.0.1:8080').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
 CELERY_BROKER_URL = config('CELERY_BROKER_URL')
