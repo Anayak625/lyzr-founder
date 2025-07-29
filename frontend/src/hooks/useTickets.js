@@ -1,16 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import apiClient from '@/api/apiClient';
-
-const fetchTickets = async () => {
-  const { data } = await apiClient.get('/tickets/');
-  return data;
-};
+import { fetchTickets } from '@/api';
 
 export const useTickets = () => {
-  const { data: tickets, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['tickets'],
     queryFn: fetchTickets,
   });
 
-  return { tickets, isLoading, error };
+  return { 
+    tickets: data?.results || [], 
+    isLoading, 
+    error 
+  };
 };
