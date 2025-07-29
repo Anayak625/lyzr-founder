@@ -1,22 +1,10 @@
 import apiClient from './apiClient';
 
 // --- Authentication & User ---
-export const loginUser = async (credentials) => {
-  const response = await apiClient.post('/auth/login/', credentials);
-  return response.data;
-};
-export const registerUser = async (userData) => {
-  const response = await apiClient.post('/auth/register/', userData);
-  return response.data;
-};
-export const fetchUserDetails = async () => {
-  const response = await apiClient.get('/auth/me/');
-  return response.data;
-};
-export const updateUserDetails = async (data) => {
-  const response = await apiClient.patch('/auth/me/', data);
-  return response.data;
-};
+export const loginUser = (credentials) => apiClient.post('/auth/login/', credentials);
+export const registerUser = (userData) => apiClient.post('/auth/register/', userData);
+export const fetchUserDetails = () => apiClient.get('/auth/me/');
+export const updateUserDetails = (data) => apiClient.patch('/auth/me/', data);
 
 
 // --- Agents ---

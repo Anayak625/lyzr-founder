@@ -13,7 +13,7 @@ const OnboardingWizard = () => {
     const handleComplete = () => {
         completeOnboarding();
         setIsOpen(false);
-        navigate('/app/agent-settings');
+        navigate('/app/agent');
     };
 
     return (

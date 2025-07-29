@@ -13,7 +13,7 @@ from .serializers import (
     TicketListSerializer, TicketDetailSerializer, PublicAgentConfigSerializer,
     ConversationAnalyticsSerializer, DailyChatVolumeSerializer, TicketNoteSerializer
 )
-from .tasks import create_lyzr_stack_task, index_knowledge_source_task
+from .tasks import create_lyzr_stack_task, index_knowledge_source_task,update_lyzr_agent_task
 from .permissions import IsOwnerOrReadOnly, IsAgentOwner
 
 logger = logging.getLogger(__name__)
@@ -50,33 +50,19 @@ class AgentViewSet(viewsets.ModelViewSet):
         KnowledgeSource with initial instructions. Then, trigger Celery tasks
         to build the Lyzr stack and index the new source.
         """
-        
-        # This is the default text that will be added to every new agent's knowledge base.
         DEFAULT_KNOWLEDGE_TEXT = """
-Your primary role is to be a helpful and friendly customer support assistant for our website.
-
+Your primary role is to be a helpful and friendly customer support assistant.
 Key Instructions:
-1.  **Greeting**: Always start the conversation with a warm and friendly greeting.
-2.  **Source of Truth**: Your answers must be based exclusively on the information provided in the documents within your knowledge base.
-3.  **Handling Unknowns**: If a user asks a question and the answer is not in your documents, you MUST state that you cannot find the answer. Do not invent information. Instead, offer to connect them with a human support agent. A good response would be: "I'm sorry, I can't find the answer to that in my documents. Would you like me to connect you with a member of our support team?"
-4.  **Tone**: Maintain a professional, positive, and helpful tone throughout the conversation.
-5.  **Clarity**: Keep your responses clear, concise, and easy to understand.
+1.  Greeting: Always start the conversation with a warm and friendly greeting.
+2.  Source of Truth: Your answers must be based exclusively on the information provided in the documents within your knowledge base.
+3.  Handling Unknowns: If a user asks a question and the answer is not in your documents, you MUST state that you cannot find the answer. A good response is: "I'm sorry, I can't find the answer to that in my documents. Would you like me to connect you with a support team member?" Do not invent information.
+4.  Tone: Maintain a professional, positive, and helpful tone.
 """
-        
         try:
-            # Use a database transaction to ensure all creations succeed or fail together.
             with transaction.atomic():
-                # 1. Save the new agent instance
                 agent = serializer.save(user=self.request.user)
-                
-                # 2. Create the associated Knowledge Base for the agent
-                valid_collection_name = f"task_{agent.id.hex[:11]}"
-                kb = KnowledgeBase.objects.create(
-                    agent=agent, 
-                    collection_name=valid_collection_name
-                )
-                
-                # 3. Create the default knowledge source with the instructions
+                valid_collection_name = f"kb_coll_{agent.id.hex[:16]}"
+                kb = KnowledgeBase.objects.create(agent=agent, collection_name=valid_collection_name)
                 default_source = KnowledgeSource.objects.create(
                     knowledge_base=kb,
                     type=KnowledgeSource.SourceType.TEXT,
@@ -84,17 +70,27 @@ Key Instructions:
                     content=DEFAULT_KNOWLEDGE_TEXT
                 )
             
-            # 4. After the transaction is successful, queue the background tasks.
-            # This task creates the agent and RAG config on the Lyzr platform.
+            # After transaction, queue background tasks
             create_lyzr_stack_task.delay(agent.id)
-            
-            # This new task indexes our default instructions immediately.
+            # NEW: Immediately index the default instructions
             index_knowledge_source_task.delay(default_source.id)
 
         except Exception as e:
-            logger.error(f"Agent and Knowledge Base creation failed for user {self.request.user.email}: {e}")
-            # If anything goes wrong, raise a validation error to inform the frontend.
+            logger.error(f"Agent creation failed for user {self.request.user.email}: {e}")
             raise serializers.ValidationError({"detail": "Failed to create the agent and its default knowledge base."})
+        
+    def perform_update(self, serializer):
+        """
+        THE FIX: Override this method to trigger a background task
+        after a successful update to our local database.
+        """
+        # First, save the changes to our local database.
+        # The serializer instance passed here already has the validated data.
+        instance = serializer.save()
+
+        # Now, queue the Celery task to sync these changes with the Lyzr API.
+        logger.info(f"Queuing Lyzr update task for agent {instance.id}")
+        update_lyzr_agent_task.delay(instance.id)
         
         
 class KnowledgeSourceViewSet(viewsets.ModelViewSet):

@@ -45,7 +45,7 @@ class AgentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Agent
         fields = [
-            'id', 'user', 'lyzr_agent_id', 'name', 'is_active', 'system_prompt', 
+            'id', 'user', 'lyzr_agent_id', 'name', 'is_active', 'description', 'agent_role', 'agent_goal', 'agent_instructions', 'examples',
             'model', 'temperature', 'top_p', 'widget_settings', 'knowledge_base',
             'created_at', 'updated_at'
         ]

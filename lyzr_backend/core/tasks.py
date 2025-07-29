@@ -45,10 +45,10 @@ def create_lyzr_stack_task(self, agent_id: str):
                 'claude': 'Anthropic'
             }
             provider = provider_map.get(agent.model.split('-')[0], 'OpenAI')
-            
+            final_system_prompt = agent.get_system_prompt()
             agent_response = client.create_agent(
                 name=agent.name,
-                system_prompt=agent.system_prompt,
+                system_prompt=final_system_prompt, 
                 provider=provider,
                 model=agent.model,
                 temperature=agent.temperature,
@@ -67,7 +67,9 @@ def create_lyzr_stack_task(self, agent_id: str):
         # Step 3: Link RAG to agent (FIXED - now uses complete payload)
         logger.info(f"Linking RAG {rag_id} to agent {lyzr_agent_id}")
         try:
-            client.update_agent_with_rag(lyzr_agent_id, rag_id)
+            collection = kb.collection_name
+            
+            client.update_agent_with_rag(lyzr_agent_id, rag_id,collection)
             logger.info(f"Successfully linked RAG to agent for agent {agent_id}")
         except LyzrAPIError as e:
             if e.status_code == 422:
@@ -98,33 +100,21 @@ def create_lyzr_stack_task(self, agent_id: str):
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
 def index_knowledge_source_task(self, source_id: str):
-    """
-    ENHANCED: Index knowledge source with support for all file types and better error handling.
-    FIXED: Now handles URL endpoint 404 errors specifically.
-    """
+    """Index knowledge source with better error handling, especially for URL 404s."""
     try:
         source = KnowledgeSource.objects.select_related('knowledge_base').get(id=source_id)
         kb = source.knowledge_base
-        print(source)
-        print("..........................................................")
-        print("..........................................................")
-        print(kb.id)
-        print(kb.lyzr_rag_id)
-        
         if not kb.lyzr_rag_id:
             logger.warning(f"RAG config ID missing for KB {kb.id}, retrying task for source {source_id}")
             raise self.retry(countdown=60)
-            
     except KnowledgeSource.DoesNotExist:
         logger.error(f"KnowledgeSource {source_id} not found.")
         return
 
-    # Update status to indexing
     source.status = KnowledgeSource.IndexingStatus.INDEXING
     source.save()
     
     client = LyzrClient()
-
     try:
         logger.info(f"Indexing source {source.id} of type {source.type} for RAG {kb.lyzr_rag_id}")
         
@@ -132,7 +122,6 @@ def index_knowledge_source_task(self, source_id: str):
             with source.file.open('rb') as f:
                 client.index_file(kb.lyzr_rag_id, f, source.file.name)
         elif source.type == 'URL':
-            # FIXED: Now uses correct endpoint internally
             client.index_url(kb.lyzr_rag_id, source.content)
         elif source.type == 'TEXT':
             client.index_text_content(kb.lyzr_rag_id, source.content, source.title)
@@ -142,45 +131,27 @@ def index_knowledge_source_task(self, source_id: str):
         logger.info(f"Successfully indexed source {source.id}")
 
     except LyzrAPIError as e:
-        # Handle specific known errors
         error_text = str(e).lower()
+        # FIXED: Specific handling for URL not found errors
+        if e.status_code == 404 and source.type == 'URL':
+            logger.error(f"404 Error indexing URL source {source.id}: Endpoint or URL not found.")
+            logger.error(f"URL: {source.content}, Error Detail: {e.response_data}")
+            source.status = KnowledgeSource.IndexingStatus.FAILED
+            source.error_message = f"URL not found or inaccessible (404 Error). Please check the URL and try again."
+            source.save()
+            return # Don't retry 404s
         
-        if "already exists" in error_text and "class name" in error_text:
-            logger.warning(f"Ignoring known 'class name already exists' API error for source {source.id}.")
-            source.status = KnowledgeSource.IndexingStatus.COMPLETED
-            source.save()
-            return
-        elif "unsupported file type" in error_text:
-            logger.error(f"Unsupported file type for source {source.id}: {e}")
-            source.status = KnowledgeSource.IndexingStatus.FAILED
-            source.save()
-            return
-        elif "invalid url" in error_text:
-            logger.error(f"Invalid URL for source {source.id}: {e}")
-            source.status = KnowledgeSource.IndexingStatus.FAILED
-            source.save()
-            return
-        elif e.status_code == 404 and source.type == 'URL':
-            # FIXED: Special handling for URL 404 errors
-            logger.error(f"404 Error for URL source {source.id}: Website training endpoint not found or URL is invalid")
-            logger.error(f"URL: {source.content}")
-            logger.error(f"This might indicate:")
-            logger.error(f"1. Wrong endpoint being used (should be v3/train/website/)")
-            logger.error(f"2. Invalid URL format")
-            logger.error(f"3. URL is not accessible")
-            source.status = KnowledgeSource.IndexingStatus.FAILED
-            source.save()
-            return
-        else:
-            logger.error(f"Indexing failed for source {source.id}. Error: {e}")
-            source.status = KnowledgeSource.IndexingStatus.FAILED
-            source.save()
-            if e.status_code not in [404, 422]:  # Don't retry client errors
-                raise self.retry(exc=e)
+        logger.error(f"Indexing failed for source {source.id}. Error: {e}")
+        source.status = KnowledgeSource.IndexingStatus.FAILED
+        source.error_message = str(e)
+        source.save()
+        if e.status_code not in [404, 422]:  # Don't retry other client errors
+            raise self.retry(exc=e)
                 
     except Exception as exc:
         logger.error(f"Unexpected error indexing source {source.id}: {exc}")
         source.status = KnowledgeSource.IndexingStatus.FAILED
+        source.error_message = str(exc)
         source.save()
         raise self.retry(exc=exc)
 
@@ -313,3 +284,56 @@ def test_lyzr_connection():
     except Exception as e:
         logger.error(f"Lyzr connection test failed: {e}")
         return {"status": "error", "error": str(e)}
+    
+    
+@shared_task(bind=True, max_retries=3, default_retry_delay=120)
+def update_lyzr_agent_task(self, agent_id: str):
+    """
+    NEW: Task to synchronize local agent updates with the Lyzr API.
+    """
+    try:
+        agent = Agent.objects.get(id=agent_id)
+
+        if not agent.lyzr_agent_id:
+            logger.warning(f"Lyzr Agent ID not found for agent {agent.id}. Cannot update. Re-triggering creation.")
+            # If the agent was never created on Lyzr, try to create it now.
+            create_lyzr_stack_task.delay(agent.id)
+            return
+
+        client = LyzrClient()
+
+        # First, get the current agent config from Lyzr to preserve features like RAG link
+        try:
+            lyzr_agent_data = client.get_agent(agent.lyzr_agent_id)
+            existing_features = lyzr_agent_data.get("features", [])
+            print(f"Fetched existing features for agent {agent.lyzr_agent_id}: {existing_features}")
+        except LyzrAPIError as e:
+            logger.error(f"Failed to fetch existing Lyzr agent {agent.lyzr_agent_id} before update. Error: {e}")
+            # Proceed with a default features list if fetching fails
+            existing_features = []
+
+        # Generate the final system prompt from our structured fields
+        final_system_prompt = agent.get_system_prompt()
+        
+        logger.info(f"Syncing updates for agent {agent.id} to Lyzr agent {agent.lyzr_agent_id}")
+
+        client.update_agent(
+            lyzr_agent_id=agent.lyzr_agent_id,
+            name=agent.name,
+            system_prompt=final_system_prompt,
+            model=agent.model,
+            temperature=agent.temperature,
+            top_p=agent.top_p,
+            features=existing_features # IMPORTANT: Preserve existing features
+        )
+        
+        logger.info(f"Successfully synced agent {agent.id} with Lyzr.")
+
+    except Agent.DoesNotExist:
+        logger.error(f"Agent {agent_id} not found for Lyzr update task.")
+    except LyzrAPIError as e:
+        logger.error(f"Lyzr API error updating agent {agent_id}: {e}")
+        raise self.retry(exc=e)
+    except Exception as exc:
+        logger.error(f"Unexpected error updating Lyzr agent {agent_id}: {exc}")
+        raise self.retry(exc=exc)

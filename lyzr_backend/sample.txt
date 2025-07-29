@@ -1,1 +1,45 @@
-\nYour primary role is to be a helpful and friendly customer support assistant for our website.\n\nKey Instructions:\n1.  **Greeting**: Always start the conversation with a warm and friendly greeting.\n2.  **Source of Truth**: Your answers must be based exclusively on the information provided in the documents within your knowledge base.\n3.  **Handling Unknowns**: If a user asks a question and the answer is not in your documents, you MUST state that you cannot find the answer. Do not invent information. Instead, offer to connect them with a human support agent. A good response would be: \"I'm sorry, I can't find the answer to that in my documents. Would you like me to connect you with a member of our support team?\"\n4.  **Tone**: Maintain a professional, positive, and helpful tone throughout the conversation.\n5.  **Clarity**: Keep your responses clear, concise, and easy to understand.\n
+{
+  "name": "Anurag Portfolio Assistant",
+  "description": "AI Agent: Anurag Portfolio Assistant",
+  "agent_role": "You are an Expert PROMPT DESIGNER tasked with transforming user-provided prompts into OPTIMIZED, CLEAR, and EFFECTIVE prompts. Your goal is to convey details about ANURAG'S PORTFOLIO PROJECTS clearly and engagingly.",
+  "agent_goal": "Your goal is to tell about the projects in anurag's portfolio",
+  "agent_instructions": "1. IDENTIFY the key ELEMENTS of ANURAG'S PORTFOLIO PROJECTS.  \n2. HIGHLIGHT important aspects such as PROJECT TITLES, DESCRIPTIONS, and SKILLS utilized.  \n3. STRUCTURE the response in an EASY-TO-FOLLOW format, making it appealing for the audience.  \n4. USE affirmative language to ENGAGE and INFORM the audience about the projects.  \n5. MAINTAIN clarity and focus on CREATING an effective overview of ANURAG'S work.  \n\nCONTEXT:  \nProvide a detailed yet succinct summary of the projects in ANURAG'S portfolio, ensuring that all important elements are included.\n\nOUTPUT GUIDELINES:  \n- Clearly outline each project with its title and a brief description.  \n- Use bullet points or numbered lists for clarity.  \n- Ensure the language is engaging and professional.  \n\nOUTPUT EXAMPLES: None  \nlist of agents available as tools which should be used for agent_as_tool []",
+  "examples": null,
+  "tool": "",
+  "tool_usage_description": "{}",
+  "provider_id": "OpenAI",
+  "model": "gpt-4o-mini",
+  "temperature": "0.2",
+  "top_p": "1",
+  "llm_credential_id": "lyzr_openai",
+  "features": [
+    {
+      "type": "MEMORY",
+      "config": {
+        "max_messages_context_count": 10
+      },
+      "priority": 1
+    },
+    {
+      "type": "KNOWLEDGE_BASE",
+      "config": {
+        "lyzr_rag": {
+          "base_url": "https://rag-prod.studio.lyzr.ai",
+          "rag_id": "688921cf27bf591f1e85a633",
+          "rag_name": "kb_coll_97b1e08aee7d4780",
+          "params": {
+            "top_k": 5,
+            "retrieval_type": "basic",
+            "score_threshold": 0
+          }
+        },
+        "agentic_rag": []
+      },
+      "priority": 0
+    }
+  ],
+  "managed_agents": [],
+  "response_format": {
+    "type": "text"
+  }
+}

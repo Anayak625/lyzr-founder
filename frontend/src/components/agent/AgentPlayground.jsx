@@ -44,8 +44,9 @@ const AgentPlayground = ({ agent }) => {
       if (data.event_type === 'new_message' && data.message.sender === 'AI') {
         setMessages(prev => [...prev, { ...data.message, feedback: null }]);
       } else if (data.event_type === 'feedback_confirmation') {
+        // Find the message and update its feedback status from 'processing' to 'saved'
         setMessages(prev => prev.map(msg => 
-            msg.id === data.message_id ? { ...msg, feedback: msg.feedback === 'processing' ? 'saved' : msg.feedback } : msg
+            msg.id === data.message_id ? { ...msg, feedback: 'saved' } : msg
         ));
       }
     };
@@ -66,7 +67,8 @@ const AgentPlayground = ({ agent }) => {
   const handleSend = () => {
     if (!inputValue.trim() || connectionStatus !== 'open' || isSending) return;
     
-    setMessages(prev => [...prev, { id: `user_${Date.now()}`, sender: 'USER', content: inputValue }]);
+    const userMessage = { id: `user_${Date.now()}`, sender: 'USER', content: inputValue };
+    setMessages(prev => [...prev, userMessage]);
     
     webSocket.current.send(JSON.stringify({ event_type: 'user_message', message: inputValue }));
     setIsSending(true);
@@ -92,7 +94,7 @@ const AgentPlayground = ({ agent }) => {
     <Card className="h-full flex flex-col min-h-[70vh] shadow-lg sticky top-8">
       <CardHeader>
         <CardTitle>Testing Playground</CardTitle>
-        <CardDescription>Interact with your agent and provide feedback.</CardDescription>
+        <CardDescription>Interact with your agent in real-time.</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-y-auto p-4 space-y-4 bg-muted/20">
         {messages.map((msg, index) => (
@@ -111,7 +113,7 @@ const AgentPlayground = ({ agent }) => {
                         size="icon" 
                         variant="ghost" 
                         className={`h-7 w-7 ${msg.feedback === 'positive' || msg.feedback === 'saved' ? 'text-primary' : 'text-muted-foreground'}`}
-                        onClick={() => handleFeedback(msg.id, 'positive')}
+                        onClick={() => handleFeedback(msg.id, 'POSITIVE')}
                         disabled={!!msg.feedback}
                     >
                         <ThumbsUp className="h-4 w-4" />
@@ -120,12 +122,12 @@ const AgentPlayground = ({ agent }) => {
                         size="icon" 
                         variant="ghost" 
                         className={`h-7 w-7 ${msg.feedback === 'negative' || msg.feedback === 'saved' ? 'text-destructive' : 'text-muted-foreground'}`}
-                        onClick={() => handleFeedback(msg.id, 'negative')}
+                        onClick={() => handleFeedback(msg.id, 'NEGATIVE')}
                         disabled={!!msg.feedback}
                     >
                         <ThumbsDown className="h-4 w-4" />
                     </Button>
-                    {msg.feedback === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                    {msg.feedback === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-1" />}
                 </div>
             )}
           </div>
@@ -141,7 +143,6 @@ const AgentPlayground = ({ agent }) => {
         <div ref={messagesEndRef} />
       </CardContent>
       <div className="p-4 border-t">
-        {/* ... (Connection status alerts remain the same) ... */}
         {connectionStatus === 'connecting' && <div className="flex justify-center text-sm items-center text-muted-foreground mb-2"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Connecting...</div>}
         {connectionStatus === 'closed' && 
             <Alert variant="destructive" className="mb-2">

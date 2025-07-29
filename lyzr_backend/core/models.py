@@ -56,9 +56,28 @@ class Agent(models.Model):
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     model = models.CharField(max_length=50, choices=LyzrModel.choices, default=LyzrModel.GPT_4O_MINI)
-    system_prompt = models.TextField(
+    # --- NEW & UPDATED FIELDS ---
+    description = models.TextField(
         blank=True, 
-        default='You are a helpful customer support assistant. Answer questions accurately based on the provided documents. If you do not know the answer, say "I am not sure how to answer that, but I can connect you with a human agent."'
+        help_text="A brief description of what this agent does."
+    )
+    agent_role = models.TextField(
+        blank=True,
+        default="You are a helpful customer support assistant.",
+        help_text="Define the agent's persona or role (e.g., 'You are a friendly pirate...')."
+    )
+    agent_goal = models.TextField(
+        blank=True,
+        help_text="What is the primary objective of this agent?"
+    )
+    agent_instructions = models.TextField(
+        blank=True,
+        help_text="Provide detailed, step-by-step instructions for the agent."
+    )
+    examples = models.TextField(
+        blank=True, 
+        null=True, 
+        help_text="Optional few-shot examples in 'User: ...\\nAI: ...' format."
     )
     temperature = models.FloatField(default=0.2, validators=[MinValueValidator(0.0), MaxValueValidator(2.0)])
     top_p = models.FloatField(default=1.0, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
@@ -67,7 +86,6 @@ class Agent(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     # New fields for better agent management
-    description = models.TextField(blank=True, help_text="Description of what this agent does")
     max_tokens = models.IntegerField(default=1500, validators=[MinValueValidator(1), MaxValueValidator(8000)])
     timeout_seconds = models.IntegerField(default=30, validators=[MinValueValidator(5), MaxValueValidator(300)])
     
@@ -76,6 +94,31 @@ class Agent(models.Model):
         
     def __str__(self): 
         return f"Agent '{self.name}' for {self.user.email}"
+    
+    def get_system_prompt(self):
+        """
+        Dynamically generates the complete system prompt for the AI model
+        by combining the structured fields.
+        """
+        prompt_parts = []
+        
+        if self.agent_role:
+            prompt_parts.append(f"ROLE:\n{self.agent_role}")
+            
+        if self.agent_goal:
+            prompt_parts.append(f"GOAL:\n{self.agent_goal}")
+            
+        if self.agent_instructions:
+            prompt_parts.append(f"INSTRUCTIONS:\n{self.agent_instructions}")
+            
+        if self.examples:
+            prompt_parts.append(f"EXAMPLES:\n{self.examples}")
+
+        # Fallback to a default prompt if all fields are empty
+        if not prompt_parts:
+            return "You are a helpful assistant."
+            
+        return "\n\n".join(prompt_parts)
     
     def clean(self):
         """Validate agent configuration"""

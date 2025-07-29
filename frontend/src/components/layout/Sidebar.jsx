@@ -10,7 +10,7 @@ const Sidebar = () => {
 
   const navigation = [
     { name: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
-    { name: 'Agents', href: '/app/agent-settings', icon: Cog },
+    { name: 'Agents', href: '/app/agent', icon: Cog },
     { name: 'Tickets', href: '/app/tickets', icon: Inbox },
     { name: 'Team', href: '/app/team', icon: Users }, // New Link
     { name: 'Billing', href: '/app/billing', icon: CreditCard },
@@ -18,7 +18,7 @@ const Sidebar = () => {
 
   // ... (rest of the component remains the same)
   const isActive = (path) => {
-    if (path === '/app/agent-settings') return location.pathname === path;
+    if (path === '/app/agent') return location.pathname === path;
     return location.pathname.startsWith(path);
   }
 
