@@ -91,7 +91,7 @@ const AgentPlayground = ({ agent }) => {
   };
 
   return (
-    <Card className="h-full flex flex-col min-h-[70vh] shadow-lg sticky top-8">
+    <Card className="h-full flex flex-col min-h-[80vh] shadow-lg sticky top-8">
       <CardHeader>
         <CardTitle>Testing Playground</CardTitle>
         <CardDescription>Interact with your agent in real-time.</CardDescription>

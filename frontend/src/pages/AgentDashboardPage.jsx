@@ -11,25 +11,25 @@ import { Button } from '@/components/ui/button';
 
 // The Dashboard View Component
 const DashboardView = ({ agent, previewSettings }) => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-1 gap-8 items-start">
         <AgentPlayground 
             key={`playground-${agent?.id}`} 
             agent={agent} 
         />
-        <div className="hidden lg:block">
+        {/* <div className="hidden lg:block">
             {previewSettings && (
                 <WidgetPreview 
                     key={`preview-${agent?.id}`} 
                     settings={previewSettings} 
                 />
             )}
-        </div>
+        </div> */}
     </div>
 );
 
 // The Settings View Component
 const SettingsView = ({ agent, onSettingsChange }) => (
-    <div className="max-w-4xl mx-auto">
+    <div className="mx-auto">
         <AgentSettings 
             key={`settings-${agent?.id}`} 
             onSettingsChange={onSettingsChange} 

@@ -22,7 +22,7 @@ const TicketsListPage = () => {
     }
   };
 
-  const tickets = ticketsData?.data.results || [];
+  const tickets = ticketsData?.data?.results || [];
 
   return (
     <div className="space-y-6">

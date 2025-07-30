@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def create_lyzr_stack_task(self, agent_id: str):
-    """Create Lyzr stack with proper error handling for 422 validation errors."""
+    """Create Lyzr stack with proper error handling."""
     try:
         agent = Agent.objects.get(id=agent_id)
         kb = agent.knowledge_base
@@ -20,7 +20,6 @@ def create_lyzr_stack_task(self, agent_id: str):
 
         logger.info(f"Creating Lyzr stack for agent {agent_id}")
 
-        # Step 1: Create RAG config if needed
         if not kb.lyzr_rag_id:
             logger.info(f"Creating RAG config for agent {agent_id}")
             rag_response = client.create_rag_config(kb.collection_name, agent.model)
@@ -32,28 +31,13 @@ def create_lyzr_stack_task(self, agent_id: str):
             logger.info(f"Successfully created RAG config {rag_id} for agent {agent_id}")
         else:
             rag_id = kb.lyzr_rag_id
-            logger.info(f"RAG config {rag_id} already exists for agent {agent_id}")
 
-        # Step 2: Create Lyzr agent if needed
         if not agent.lyzr_agent_id:
             logger.info(f"Creating Lyzr agent for local agent {agent_id}")
             
-            # Map model to provider
-            provider_map = {
-                'gpt': 'OpenAI',
-                'gemini': 'Google',
-                'claude': 'Anthropic'
-            }
-            provider = provider_map.get(agent.model.split('-')[0], 'OpenAI')
-            final_system_prompt = agent.get_system_prompt()
-            agent_response = client.create_agent(
-                name=agent.name,
-                system_prompt=final_system_prompt, 
-                provider=provider,
-                model=agent.model,
-                temperature=agent.temperature,
-                top_p=agent.top_p
-            )
+            ### MODIFIED: Call create_agent with the agent object ###
+            agent_response = client.create_agent(agent=agent)
+            
             lyzr_agent_id = agent_response.get('agent_id')
             if not lyzr_agent_id:
                 raise ValueError("Agent API response missing 'agent_id' field")
@@ -62,41 +46,22 @@ def create_lyzr_stack_task(self, agent_id: str):
             logger.info(f"Successfully created Lyzr agent {lyzr_agent_id} for agent {agent_id}")
         else:
             lyzr_agent_id = agent.lyzr_agent_id
-            logger.info(f"Lyzr agent {lyzr_agent_id} already exists for agent {agent_id}")
-        
-        # Step 3: Link RAG to agent (FIXED - now uses complete payload)
-        logger.info(f"Linking RAG {rag_id} to agent {lyzr_agent_id}")
-        try:
-            collection = kb.collection_name
-            
-            client.update_agent_with_rag(lyzr_agent_id, rag_id,collection)
-            logger.info(f"Successfully linked RAG to agent for agent {agent_id}")
-        except LyzrAPIError as e:
-            if e.status_code == 422:
-                logger.error(f"422 Validation Error linking RAG to agent: {e.response_data}")
-                # Don't retry 422 errors - they indicate a code problem
-                raise ValueError(f"Agent update validation failed: {e.message}")
-            else:
-                # Other errors can be retried
-                logger.error(f"Error linking RAG to agent: {e}")
-                raise
 
-        logger.info(f"Successfully completed Lyzr stack creation for agent {agent_id}")
+        logger.info(f"Linking RAG {rag_id} to agent {lyzr_agent_id}")
+        ### MODIFIED: Pass the agent model to the linking function ###
+        client.update_agent_with_rag(lyzr_agent_id, rag_id, kb.collection_name, agent)
+        logger.info(f"Successfully linked RAG to agent for agent {agent_id}")
 
     except Agent.DoesNotExist:
         logger.error(f"Agent {agent_id} not found")
         return
     except LyzrAPIError as e:
-        if e.status_code == 422:
-            logger.error(f"422 Validation Error in Lyzr stack creation: {e.response_data}")
-            # Don't retry validation errors
-            return
-        else:
-            logger.error(f"Lyzr API error creating stack for agent {agent_id}: {e}")
-            raise self.retry(exc=e)
+        logger.error(f"Lyzr API error creating stack for agent {agent_id}: {e}")
+        raise self.retry(exc=e)
     except Exception as exc:
         logger.error(f"Unexpected error creating Lyzr stack for agent {agent_id}: {exc}")
         raise self.retry(exc=exc)
+    
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
 def index_knowledge_source_task(self, source_id: str):
@@ -289,42 +254,32 @@ def test_lyzr_connection():
 @shared_task(bind=True, max_retries=3, default_retry_delay=120)
 def update_lyzr_agent_task(self, agent_id: str):
     """
-    NEW: Task to synchronize local agent updates with the Lyzr API.
+    Task to synchronize local agent updates with the Lyzr API.
     """
     try:
         agent = Agent.objects.get(id=agent_id)
 
         if not agent.lyzr_agent_id:
-            logger.warning(f"Lyzr Agent ID not found for agent {agent.id}. Cannot update. Re-triggering creation.")
-            # If the agent was never created on Lyzr, try to create it now.
+            logger.warning(f"Lyzr Agent ID not found for agent {agent.id}. Re-triggering creation.")
             create_lyzr_stack_task.delay(agent.id)
             return
 
         client = LyzrClient()
 
-        # First, get the current agent config from Lyzr to preserve features like RAG link
         try:
             lyzr_agent_data = client.get_agent(agent.lyzr_agent_id)
             existing_features = lyzr_agent_data.get("features", [])
-            print(f"Fetched existing features for agent {agent.lyzr_agent_id}: {existing_features}")
         except LyzrAPIError as e:
-            logger.error(f"Failed to fetch existing Lyzr agent {agent.lyzr_agent_id} before update. Error: {e}")
-            # Proceed with a default features list if fetching fails
+            logger.error(f"Failed to fetch existing Lyzr agent {agent.lyzr_agent_id}. Error: {e}")
             existing_features = []
 
-        # Generate the final system prompt from our structured fields
-        final_system_prompt = agent.get_system_prompt()
-        
         logger.info(f"Syncing updates for agent {agent.id} to Lyzr agent {agent.lyzr_agent_id}")
-
+        
+        ### MODIFIED: Call update_agent with the correct arguments ###
         client.update_agent(
             lyzr_agent_id=agent.lyzr_agent_id,
-            name=agent.name,
-            system_prompt=final_system_prompt,
-            model=agent.model,
-            temperature=agent.temperature,
-            top_p=agent.top_p,
-            features=existing_features # IMPORTANT: Preserve existing features
+            agent=agent, # Pass the whole agent object
+            features=existing_features # Preserve existing features like RAG
         )
         
         logger.info(f"Successfully synced agent {agent.id} with Lyzr.")
