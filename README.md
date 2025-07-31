@@ -1,16 +1,30 @@
 # LyzrFoundry - Plug-and-Play AI Chatbot Platform
 
 ![LyzrFoundry Banner](github_resources/home.png)
-
-**LyzrFoundry** is a powerful, self-serve platform for building, training, and deploying AI-powered customer support chatbots. Inspired by services like chatbase.co, it provides a seamless "plug-and-play" experience, allowing users to go from signup to a live chat widget on their website in minutes.
-
-The platform is built with a robust backend using Django and a modern, responsive frontend using React, providing a complete solution for creating and managing intelligent Lyzr agents.
-
 [![Python](https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
 [![Celery](https://img.shields.io/badge/Celery-5.3-3781A6?logo=celery&logoColor=white)](https://docs.celeryq.dev/en/stable/)
 [![Channels](https://img.shields.io/badge/Django%20Channels-5.0-A42722?logo=django&logoColor=white)](https://channels.readthedocs.io/en/latest/)
+
+**LyzrFoundry** is a powerful, self-serve platform for building, training, and deploying AI-powered customer support chatbots. Inspired by services like chatbase.co, it provides a seamless "plug-and-play" experience, allowing users to go from signup to a live chat widget on their website in minutes.
+
+The platform is built with a robust backend using Django and a modern, responsive frontend using React, providing a complete solution for creating and managing intelligent Lyzr agents.
+
+### 🚀 Deployment & Demo
+
+**[Watch Demo on YouTube](https://youtu.be/f2Vd8sH0UeE?si=Qbej6OW1niTDsIKq)**
+  
+  [![YouTube](https://img.shields.io/badge/YouTube-Video-red?logo=youtube&logoColor=white)](https://youtu.be/f2Vd8sH0UeE?si=Qbej6OW1niTDsIKq)
+
+**[Live Frontend on Vercel](https://lyzr-founder.vercel.app)**
+  
+  [![Vercel](https://img.shields.io/badge/Vercel-Frontend-000?logo=vercel&logoColor=white)](https://lyze-founder.vercel.app)
+
+**[Live Backend on Azure](https://lyzr-ai.azurewebsites.net)**
+  
+  [![Azure](https://img.shields.io/badge/Azure-Backend-0078D4?logo=microsoft-azure&logoColor=white)](https://lyzr-ai.azurewebsites.net)
+
 
 ## Core Features
 
