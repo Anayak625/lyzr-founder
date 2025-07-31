@@ -8,6 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-)ci21ajqaw27i*a+k%ihab4*qpnc^-m@k_n!1+gfkj892i78&o'
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
+CSRF_TRUSTED_ORIGINS = ['https://lyzr-ai.azurewebsites.net','https://127.0.0.1']
 
 INSTALLED_APPS = [
     'daphne',
