@@ -36,7 +36,7 @@
   // 1. Widget's CSS file
   const cssLink = document.createElement('link');
   cssLink.rel = 'stylesheet';
-  cssLink.href = `${APP_HOST}/assets/widget.css`; 
+  cssLink.href = `${APP_HOST}/assets/index.css`; 
   shadowRoot.appendChild(cssLink);
   
   // 2. Widget's JavaScript Application
