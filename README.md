@@ -1,187 +1,216 @@
-# LyzrFoundry: AI Support That Builds Your Business
+# LyzrFoundry - Plug-and-Play AI Chatbot Platform
 
-**LyzrFoundry isn't just a chatbot. It's an intelligent support and analytics platform designed for founders. It reduces your support workload while transforming customer questions into actionable data for growth.**
+![LyzrFoundry Banner](github_resources/home.png)
 
----
+**LyzrFoundry** is a powerful, self-serve platform for building, training, and deploying AI-powered customer support chatbots. Inspired by services like chatbase.co, it provides a seamless "plug-and-play" experience, allowing users to go from signup to a live chat widget on their website in minutes.
 
-### **Table of Contents**
-- [**Live Demo & Video Walkthrough**](#live-demo--video-walkthrough)
-- [**The Vision: More Than Just a Chatbot**](#the-vision-more-than-just-a-chatbot)
-- [**Strategic Features for the Founder**](#strategic-features-for-the-founder-the-wow-factor)
-    - [1. Analytics Dashboard: Turn Questions into Insights](#1-analytics-dashboard-turn-questions-into-insights)
-    - [2. Seamless Onboarding: To Sign-up](#2-seamless-onboarding-from-sign-up-to-aha-in-60-seconds)
-    - [3. Proactive Tuning: A Self-Improving AI](#3-proactive-tuning-a-self-improving-ai)
-    - [4. Cost & Usage Tracking: Manage Your Burn Rate](#4-cost--usage-tracking-manage-your-burn-rate)
-- [**Core Functionality**](#core-functionality)
-- [**Technology Stack & Architecture**](#technology-stack--architecture)
-- [**Getting Started (Local Setup)**](#getting-started-local-setup)
-- [**Project Structure**](#project-structure)
+The platform is built with a robust backend using Django and a modern, responsive frontend using React, providing a complete solution for creating and managing intelligent Lyzr agents.
 
+[![Python](https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
+[![Celery](https://img.shields.io/badge/Celery-5.3-3781A6?logo=celery&logoColor=white)](https://docs.celeryq.dev/en/stable/)
+[![Channels](https://img.shields.io/badge/Django%20Channels-5.0-A42722?logo=django&logoColor=white)](https://channels.readthedocs.io/en/latest/)
 
-## **Live Demo & Video Walkthrough**
+## Core Features
 
-[](https://your-live-demo-url.com)
-*<p align="center">Click the image above for a live demo of the deployed application.</p>*
+- **Self-Serve User Flow**: A complete onboarding process from user registration and login to agent creation.
+- **Advanced Agent Tuning**: A dedicated UI to configure every aspect of the AI agent, including:
+    - **Identity**: Name, description, and persona.
+    - **Behavior**: Goals, step-by-step instructions, and few-shot examples.
+    - **Model Configuration**: Choice of LLMs (GPT-4o Mini, GPT-4 Turbo, Gemini), temperature, and other advanced settings.
+- **Knowledge Base Management**:
+    - Easily train agents by uploading documents (`.pdf`, `.docx`, `.txt`) or scraping website content via URLs.
+    - View the status of knowledge sources as they are indexed asynchronously.
+- **Real-time Chat Playground**: Test and interact with your configured agent in real-time within the app dashboard before deploying.
+- **Plug-and-Play Website Widget**:
+    - A single `<script>` tag to embed the chat widget on any website.
+    - Style isolation using Shadow DOM to prevent CSS conflicts with the host page.
+    - Customizable appearance (brand color, header text, welcome message).
+- **Built-in Ticket Management**:
+    - Automatically created tickets for conversations that are flagged for review.
+    - View full conversation history.
+    - Add internal notes for team collaboration.
+    - Update ticket status (Active, Flagged, Resolved).
+- **Analytics Dashboard**: Get insights into agent performance with KPIs like total conversations, resolution rate, and chat volume trends.
+- **Asynchronous Processing**: Uses Celery and Redis for handling long-running tasks like agent creation and knowledge base indexing without blocking the UI.
+- **Secure and Scalable**: Built with Django REST Framework, Simple-JWT for authentication, and Azure Blob Storage for secure file handling.
 
-### **2-Minute Founder Walkthrough (Loom Video)**
+## Architecture & Flow Diagrams
 
-Watch this short video to see how LyzrFoundry takes a user from sign-up to a fully operational, insight-generating support agent on their website in under two minutes.
+### 1. High-Level System Architecture
 
-**(Link to your 2-3 minute Loom video here)**
+This diagram shows the main components of the LyzrFoundry platform and how they interact.
 
----
+![High-Level System Design](github_resources/high-level.png)
 
-## **The Vision: More Than Just a Chatbot**
+### 2. Self-Serve User Flow
 
-Every founder cares about three things: **Growth, Data, and Efficiency.** This project was built from the ground up to serve those needs.
+This diagram illustrates the primary user journey, from signing up to deploying the widget.
 
-Standard customer support tools are reactive. They help you answer questions. LyzrFoundry is proactive. It's designed to *eliminate* questions by telling you what your customers are confused about, what information is missing from your website, and how to improve your product.
+![User Flow](github_resources/user-flow.png)
 
-It achieves this by providing a plug-and-play AI support agent powered by Lyzr, and then layering a powerful business intelligence dashboard on top.
+### 3. Agent Training & Chat Flow (Async)
 
----
+This diagram details the asynchronous process of indexing a knowledge source and how a chat message is handled.
 
-## **Strategic Features for the Founder (The "Wow" Factor)**
+![Chat-Widget State](github_resources/chat-widget-state.png)
+![Chat-Widget Architecture](github_resources/chat-widget-architecture.png)
 
-This is what makes LyzrFoundry different. These features were designed to provide direct business value, not just technical functionality.
+## Tech Stack
 
-### **1. Analytics Dashboard: Turn Questions into Insights**
-Instead of a simple ticket list, we provide a dashboard that helps you understand your customers and business health at a glance.
+| Category      | Technology                                                                                                                              |
+| :------------ | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**  | [React](https://react.dev/), [Vite](https://vitejs.dev/), [Tailwind CSS](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/), [@tanstack/react-query](https://tanstack.com/query/latest), [Axios](https://axios-http.com/), [React Router](https://reactrouter.com/) |
+| **Backend**   | [Python](https://www.python.org/), [Django](https://www.djangoproject.com/), [Django REST Framework](https://www.django-rest-framework.org/), [Django Channels](https://channels.readthedocs.io/), [Celery](https://docs.celeryq.dev/en/stable/) |
+| **Database**  | [Azure Database for PostgreSQL server](https://www.postgresql.org/)                                                                                               |
+| **Cache/Broker**| [Azure Cache for Redis](https://redis.io/)                                                                                                                |
+| **Storage**   | [Azure Blob Storage](https://azure.microsoft.com/en-us/products/storage/blobs)                                                                |
+| **Deployment**| Whitenoise, Daphne                                                                                                  |
 
-*   **Key Metrics:** Instantly see your `Total Chats`, `New Tickets`, and your AI's `Resolution Rate`.
-*   **Most Frequent Questions:** A continuously updated list of what your customers are asking most often. This is a goldmine for identifying gaps in your documentation or website copy.
-*   **Trend Visualization:** Simple charts show chat and ticket volume over time, helping you spot trends and understand customer engagement.
+## Getting Started
 
-> **Business Value:** This transforms customer support from a cost center into a strategic intelligence hub. You get the data you need to proactively improve your business and reduce your long-term support burden.
+Follow these instructions to set up and run the project on your local machine.
 
-### **2. Seamless Onboarding: From Sign-up to "Aha!" in 60 Seconds**
-We believe a user who gets value fast is a user who stays. We've obsessed over making the path to the "Aha!" moment as short as possible.
+### Prerequisites
 
-*   **Guided Tour:** A simple, step-by-step modal flow guides new users to create their first agent immediately after sign-up.
-*   **The "Magic Snippet":** After creation, the user is presented with one line of code. They are shown exactly where to paste it on their website to go live.
-*   **Zero Friction:** We remove all guesswork and don't dump users on a blank dashboard.
+- Python 3.12+
+- Node.js 18+ and npm
+- PostgreSQL
+- Redis
+- An active Lyzr API account with credentials.
 
-> **Business Value:** This focus on UX directly increases the user activation rate, a critical metric for growth and user retention. It shows an understanding of product-led growth.
+### Backend Setup
 
-### **3. Proactive Tuning: A Self-Improving AI**
-An agent that can't answer a question is a frustration for the customer and a new ticket for you. We built a data-driven feedback loop to solve this.
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/Anayak625/lyzr-founder.git
+    cd lyzr-founder
+    ```
 
-*   **Feedback Mechanism:** A simple "👍 / 👎" button appears after each AI response in the chat widget.
-*   **Automated Analysis:** When a user clicks "👎", we log the question. Our backend analyzes these failures to find patterns.
-*   **Actionable Suggestions:** The dashboard presents clear, data-backed advice like: *"Your agent frequently fails to answer questions about 'refunds'. Consider adding your refund policy to its knowledge base."*
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    ```
 
-> **Business Value:** This creates a self-improving system that increases the agent's effectiveness over time, directly reducing the number of escalated tickets and improving customer satisfaction without manual effort.
+3.  **Install Python dependencies:**
+    ```bash
+    cd lyzr-backend
+    pip install -r requirements.txt
+    ```
 
-### **4. Cost & Usage Tracking: Manage Your Burn Rate**
-Every API call has a cost. Founders need to see and manage their expenses.
+4.  **Set up environment variables:**
+    Create a `.env` file in the root directory and populate it with the following keys. Refer to `.env.example` if available.
+    ```env
+    # Django
+    SECRET_KEY=your-strong-secret-key
+    DEBUG=True
+    ALLOWED_HOSTS=127.0.0.1,localhost
 
-*   **Usage Meter:** The dashboard clearly displays how many Lyzr API queries have been used against a monthly free tier (e.g., *"412 / 1,000 free monthly queries"*).
-*   **Backend Logging:** Every API call to the Lyzr service is logged and attributed to the correct user account.
+    # Database 
+    DATABASE_URL=postgres://user:password@host:port/dbname
+    DB_SSL_REQUIRE=True
 
-> **Business Value:** This shows commercial awareness. It provides cost transparency and builds the foundation for a sustainable, tiered SaaS pricing model.
+    # Celery and Channels Broker URL using Redis
+    CELERY_BROKER_URL=redis://localhost:6379/0
+    CELERY_RESULT_BACKEND=redis://localhost:6379/0
+    CHANNEL_LAYER_REDIS_URL=redis://localhost:6379/1
 
----
+    # Azure Storage for file uploads
+    AZURE_ACCOUNT_NAME=your-azure-storage-account-name
+    AZURE_ACCOUNT_KEY=your-azure-storage-account-key
+    AZURE_CONTAINER=lyzr-db
 
-## **Core Functionality**
+    # Lyzr API Credentials
+    LYZR_API_KEY=your-lyzr-api-key
+    LYZR_AGENT_API_BASE_URL=https://agent-prod.studio.lyzr.ai
+    LYZR_RAG_API_BASE_URL=https://rag-prod.studio.lyzr.ai
+    LYZR_LLM_CREDENTIAL_ID=your-lyzr-llm-credential-id
+    LYZR_EMBEDDING_CREDENTIAL_ID=your-lyzr-embedding-credential-id
+    LYZR_VECTOR_DB_CREDENTIAL_ID=your-lyzr-vector-db-credential-id
+    LYZR_LLM_PROVIDER_ID="OpenAI"
+    ```
 
-✔️ **Plug-and-Play Chat Widget:** A single line of code adds the chat widget to any website.
-✔️ **Self-Serve Agent Creation:** Users can create and configure support agents without touching the Lyzr Studio backend.
-✔️ **User Management:** Secure user sign-up, login, and profile management.
-✔️ **Ticket Management:** A clean UI for viewing and managing conversations that require human attention.
+5.  **Run database migrations:**
+    ```bash
+    daphne -p 8000 lyzr_backend.asgi:application
+    ```
 
----
+6.  **Create a superuser:**
+    ```bash
+    python manage.py createsuperuser
+    ```
 
-## **Technology Stack & Architecture**
+7.  **Run the Celery worker (in a separate terminal):**
+    ```bash
+    celery -A lyzr_backend.celery worker -l info
+    ```
 
-We chose a modern, decoupled architecture for scalability, security, and maintainability.
+8.  **Run the Django development server (in another terminal):**
+    The application uses Django Channels, so we run it with `daphne`.
+    ```bash
+    daphne -p 8000 lyzr_backend.asgi:application
+    ```
+    The backend API will be available at `http://127.0.0.1:8000`.
 
-*   **Frontend:** **ReactJS** (with Recharts for visualizations). Deployed on **Azure Static Web Apps** for fast, global delivery.
-*   **Backend:** **Django & Django REST Framework**. A robust and secure API for handling business logic. Deployed on **Azure App Service** for scalable performance.
-*   **Database:** **PostgreSQL on Azure**. A powerful, open-source relational database.
-*   **AI Engine:** **Lyzr Agents API**. The core intelligence powering the chat functionality.
+### Frontend Setup
 
-*Architecture Diagram:*
-```
-[User's Website] <--> [React Chat Widget]
-       |
-[User on a Browser] <--> [React App on Azure SWA] <--> [Django REST API on Azure App Service] <--> [PostgreSQL on Azure]
-                                                                        |
-                                                                   [Lyzr API]
-```
-> **Why this stack?** Django's "batteries-included" philosophy accelerated the development of user and ticket management. React provides a modern, interactive user experience. Decoupling them and hosting on Azure provides a professional-grade, scalable foundation fit for a real-world SaaS product.
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
 
----
+2.  **Install JavaScript dependencies:**
+    ```bash
+    npm install
+    ```
 
-## **Getting Started (Local Setup)**
+3.  **Set up environment variables:**
+    Create a `.env` file in the `frontend` directory.
+    ```env
+    VITE_REACT_APP_API_BASE_URL=http://127.0.0.1:8000/api/v1
+    VITE_APP_WS_URL=127.0.0.1:8000
+    VITE_WIDGET_BASE_URL=http://localhost:8080 # Points to the dev server for the widget code
+    ```
 
-Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
+4.  **Run the React development server (in a new terminal):**
+    ```bash
+    npm run dev
+    ```
+    The frontend application will be available at `http://localhost:8080`.
 
-### **Prerequisites**
-*   Python 3.9+
-*   Node.js v16+ & npm
-*   Git
+## API Usage
 
-### **1. Backend Setup (Django)**
-```bash
-# Clone the repository
-git clone https://github.com/your-username/lyzr-foundry.git
-cd lyzr-foundry/backend
+A Postman collection is available in the `/postman` directory of this repository:  
+[`postman_api/Lyzr_Django_API_Complete_Collection.json`](postman_api/Lyzr_Django_API_Complete_Collection.json)
 
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+You can import this collection into Postman to explore and test all available API endpoints.
 
-# Install dependencies
-pip install -r requirements.txt
+1.  **Import**: Import the `LyzrFoundry.postman_collection.json` file into your Postman client.
+2.  **Environment**: Set up a Postman environment with a variable `base_url` set to `http://127.0.0.1:8000/api/v1`.
+3.  **Authentication**:
+    - Use the `Auth > Login` request with your user credentials to get an `access` token.
+    - Postman will automatically store this token. Subsequent requests are configured to use this Bearer Token for authorization.
 
-# Create a .env file and add your secret keys
-# (copy .env.example to .env and fill in the values)
-# SECRET_KEY=your-django-secret-key
-# DATABASE_URL=your-local-postgres-url
-# LYZR_API_KEY=your-lyzr-api-key
+### Key API Endpoints
 
-# Run database migrations
-python manage.py migrate
+-   `POST /api/v1/auth/register/` - Create a new user.
+-   `POST /api/v1/auth/login/` - Authenticate and get JWT tokens.
+-   `GET, POST /api/v1/agents/` - List or create agents.
+-   `GET, PUT, PATCH, DELETE /api/v1/agents/{id}/` - Manage a specific agent.
+-   `GET, POST /api/v1/agents/{agent_pk}/knowledge-sources/` - Manage knowledge sources for an agent.
+-   `GET /api/v1/tickets/` - List all support tickets.
+-   `GET /api/v1/tickets/{id}/` - Get details of a specific ticket.
+-   `POST /api/v1/tickets/{id}/add_note/` - Add an internal note to a ticket.
 
-# Run the development server
-python manage.py runserver
-# The backend will be available at http://127.0.0.1:8000
-```
+## How The Website Widget Works
 
-### **2. Frontend Setup (React)**
-```bash
-# Navigate to the frontend directory
-cd ../frontend
+The embeddable widget is a key "plug-and-play" feature.
 
-# Install dependencies
-npm install
+1.  **Loader Script**: A user places a simple `<script>` tag on their site. This script (`frontend/public/widget.js`) is a lightweight, vanilla JavaScript file.
+2.  **Shadow DOM**: The loader script creates a `<div>` on the host page and attaches a **Shadow DOM**. This is crucial as it encapsulates all of the widget's styles and scripts, preventing any CSS from the host page from "leaking in" and breaking the widget's layout, and vice-versa.
+3.  **Dynamic Loading**: The script then dynamically creates `<link>` and `<script>` tags *inside* the Shadow DOM to load the widget's main CSS and JavaScript application bundle (the compiled React app).
+4.  **React Mount**: Once the widget's main script is loaded, it exposes a global function (`window.mountLyzrWidget`). The loader script calls this function, passing in the root element inside the Shadow DOM where the React application should be mounted.
 
-# Create a .env.local file and add the API URL
-# REACT_APP_API_URL=http://127.0.0.1:8000
-
-# Start the React development server
-npm start
-# The frontend will be available at http://localhost:3000
-```
-
----
-
-## **Project Structure**
-The project is organized into two main directories: `backend` and `frontend`, maintaining a clean separation of concerns.
-
-```
-/
-├── backend/            # Django REST Framework application
-│   ├── api/            # Core API logic, views, serializers
-│   ├── tickets/        # Django app for ticket management
-│   ├── users/          # Django app for user management
-│   └── manage.py
-├── frontend/           # React application
-│   ├── public/
-│   └── src/
-│       ├── components/ # Reusable React components (Dashboard, ChatWidget, etc.)
-│       ├── pages/      # Main pages (Login, Dashboard, etc.)
-│       ├── services/   # API call functions
-│       └── App.js
-└── README.md
-```
+This approach ensures maximum compatibility and zero interference with the customer's website.

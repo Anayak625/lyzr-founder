@@ -1,0 +1,967 @@
+{
+  "info": {
+    "name": "Lyzr Django Backend API - Complete Collection",
+    "description": "Complete Postman collection for Lyzr Django backend with authentication, agents, knowledge sources, tickets, and dashboard analytics. This collection includes proper JWT authentication, environment variables, and automated token management.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "c3e16700-afaa-4dc8-a7e1-1971c5dc3fae",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "_exporter_id": "lyzr-api-collection"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-set base URL if not defined",
+          "if (!pm.environment.get('base_url')) {",
+          "    pm.environment.set('base_url', 'http://localhost:8000/api');",
+          "}",
+          "",
+          "// Check if access token is expired (basic check)",
+          "const accessToken = pm.environment.get('access_token');",
+          "if (accessToken) {",
+          "    try {",
+          "        const payload = JSON.parse(atob(accessToken.split('.')[1]));",
+          "        const exp = payload.exp * 1000;",
+          "        const now = Date.now();",
+          "        if (now >= exp) {",
+          "            console.log('\u26a0\ufe0f Access token expired, please refresh');",
+          "        }",
+          "    } catch (e) {",
+          "        console.log('Token format validation skipped');",
+          "    }",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script for error handling",
+          "if (pm.response.code === 401) {",
+          "    console.log('\u274c Authentication failed - token may be expired');",
+          "} else if (pm.response.code >= 400) {",
+          "    console.log('\u274c Request failed with status:', pm.response.code);",
+          "} else if (pm.response.code >= 200 && pm.response.code < 300) {",
+          "    console.log('\u2705 Request successful');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api",
+      "type": "string",
+      "description": "Base API URL - change this to your server URL"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token - automatically set after login"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT refresh token - automatically set after login"
+    },
+    {
+      "key": "agent_id",
+      "value": "",
+      "type": "string",
+      "description": "Current agent ID - automatically set when retrieving agents"
+    },
+    {
+      "key": "knowledge_source_id",
+      "value": "",
+      "type": "string",
+      "description": "Current knowledge source ID - automatically set"
+    },
+    {
+      "key": "ticket_id",
+      "value": "",
+      "type": "string",
+      "description": "Current ticket ID - automatically set"
+    }
+  ],
+  "item": [
+    {
+      "name": "\ud83d\udd10 Authentication",
+      "description": "User authentication endpoints - register, login, refresh token, and user profile",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"securepassword123\",\n  \"full_name\": \"John Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                ""
+              ]
+            },
+            "description": "Register a new user account"
+          },
+          "response": []
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                ""
+              ]
+            },
+            "description": "Login user and get JWT tokens"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Automatically set tokens from login response",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.access) {",
+                  "        pm.environment.set('access_token', responseJson.access);",
+                  "        pm.environment.set('refresh_token', responseJson.refresh);",
+                  "        console.log('\u2705 Tokens saved successfully');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Refresh Access Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh",
+                ""
+              ]
+            },
+            "description": "Refresh access token using refresh token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Automatically update access token",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.access) {",
+                  "        pm.environment.set('access_token', responseJson.access);",
+                  "        console.log('\u2705 Access token refreshed');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me",
+                ""
+              ]
+            },
+            "description": "Get current user profile information"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"John Smith\",\n  \"onboarding_completed\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me",
+                ""
+              ]
+            },
+            "description": "Update user profile information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83e\udd16 Agents Management",
+      "description": "CRUD operations for AI agents - create, read, update, delete agents",
+      "item": [
+        {
+          "name": "Get All Agents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                ""
+              ]
+            },
+            "description": "Retrieve all agents for the authenticated user"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Save first agent ID for subsequent requests",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.length > 0) {",
+                  "        pm.environment.set('agent_id', responseJson[0].id);",
+                  "        console.log('\u2705 Agent ID saved:', responseJson[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create New Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Customer Support Bot\",\n  \"system_prompt\": \"You are a helpful customer support assistant. Answer questions accurately based on the provided documents. If you do not know the answer, say 'I am not sure how to answer that, but I can connect you with a human agent.'\",\n  \"model\": \"gpt-4o\",\n  \"temperature\": 0.2,\n  \"top_p\": 1.0,\n  \"widget_settings\": {\n    \"theme\": \"light\",\n    \"position\": \"bottom-right\",\n    \"greeting\": \"Hello! How can I help you today?\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agents/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                ""
+              ]
+            },
+            "description": "Create a new AI agent"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Save created agent ID",
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.environment.set('agent_id', responseJson.id);",
+                  "    console.log('\u2705 New agent created with ID:', responseJson.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Specific Agent",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                ""
+              ]
+            },
+            "description": "Get details of a specific agent by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Agent",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Customer Support Bot\",\n  \"system_prompt\": \"You are an advanced customer support assistant with enhanced knowledge base access.\",\n  \"temperature\": 0.3,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                ""
+              ]
+            },
+            "description": "Update an existing agent"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Agent",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                ""
+              ]
+            },
+            "description": "Delete an agent (use with caution)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udcda Knowledge Sources",
+      "description": "Manage knowledge sources - files, URLs, and text content for agent training",
+      "item": [
+        {
+          "name": "Get Agent Knowledge Sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                ""
+              ]
+            },
+            "description": "Get all knowledge sources for a specific agent"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Save first knowledge source ID",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.length > 0) {",
+                  "        pm.environment.set('knowledge_source_id', responseJson[0].id);",
+                  "        console.log('\u2705 Knowledge source ID saved:', responseJson[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Upload PDF File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "type",
+                  "value": "FILE",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "Company Handbook",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                ""
+              ]
+            },
+            "description": "Upload a PDF file as knowledge source"
+          },
+          "response": []
+        },
+        {
+          "name": "Add URL Source",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"URL\",\n  \"title\": \"Company FAQ Page\",\n  \"content\": \"https://company.com/faq\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                ""
+              ]
+            },
+            "description": "Add a URL as knowledge source"
+          },
+          "response": []
+        },
+        {
+          "name": "Add Text Content",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"TEXT\",\n  \"title\": \"Product Information\",\n  \"content\": \"Our main product is an AI-powered customer service platform that helps businesses automate their support operations. Key features include: 1) Intelligent chatbots, 2) Knowledge base integration, 3) Multi-channel support, 4) Analytics dashboard.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                ""
+              ]
+            },
+            "description": "Add text content as knowledge source"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Specific Knowledge Source",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/{{knowledge_source_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                "{{knowledge_source_id}}",
+                ""
+              ]
+            },
+            "description": "Get details of a specific knowledge source"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Knowledge Source",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Product Information\",\n  \"content\": \"Updated content goes here...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/{{knowledge_source_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                "{{knowledge_source_id}}",
+                ""
+              ]
+            },
+            "description": "Update an existing knowledge source"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Knowledge Source",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/{{knowledge_source_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge-sources",
+                "{{knowledge_source_id}}",
+                ""
+              ]
+            },
+            "description": "Delete a knowledge source"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83c\udfab Tickets & Conversations",
+      "description": "Manage customer support tickets and conversations",
+      "item": [
+        {
+          "name": "Get All Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": true,
+                  "description": "Filter by status: ACTIVE, RESOLVED, FLAGGED"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true,
+                  "description": "Page number for pagination"
+                }
+              ]
+            },
+            "description": "Get all tickets/conversations for the authenticated user's agents"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Save first ticket ID",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.length > 0) {",
+                  "        pm.environment.set('ticket_id', responseJson[0].id);",
+                  "        console.log('\u2705 Ticket ID saved:', responseJson[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Ticket Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                ""
+              ]
+            },
+            "description": "Get detailed information about a specific ticket including messages and notes"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Ticket Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"RESOLVED\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/update_status/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "update_status",
+                ""
+              ]
+            },
+            "description": "Update ticket status (ACTIVE, RESOLVED, FLAGGED)"
+          },
+          "response": []
+        },
+        {
+          "name": "Add Note to Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Customer issue resolved. Provided detailed explanation about product features.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/add_note/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "add_note",
+                ""
+              ]
+            },
+            "description": "Add internal note to a ticket"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udcca Dashboard & Analytics",
+      "description": "Analytics and dashboard data for monitoring agent performance",
+      "item": [
+        {
+          "name": "Get Dashboard Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dashboard/analytics/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dashboard",
+                "analytics",
+                ""
+              ]
+            },
+            "description": "Get comprehensive dashboard analytics including KPIs, chat volume trends, and recent tickets"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83c\udf10 Public Endpoints",
+      "description": "Public endpoints that don't require authentication",
+      "item": [
+        {
+          "name": "Get Public Agent Configuration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/public/agent-config/{{agent_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "public",
+                "agent-config",
+                "{{agent_id}}",
+                ""
+              ]
+            },
+            "description": "Get public configuration for an agent (used by chat widget)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udcac WebSocket Chat Testing",
+      "description": "WebSocket connection details and testing information",
+      "item": [
+        {
+          "name": "WebSocket Connection Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ws-info/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ws-info",
+                ""
+              ]
+            },
+            "description": "This is informational only. WebSocket connections should be made to: ws://localhost:8000/ws/chat/{agent_id}/{session_id}/"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
