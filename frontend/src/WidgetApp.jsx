@@ -39,7 +39,7 @@ const WidgetApp = ({ agentId }) => {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <div className="h-screen w-screen bg-background">
+            <div className="h-screen bg-background" style={{height:'600px'}}>
                 {agentConfig && <AgentPlayground agent={agentConfig} initialExpanded={false} />}
             </div>
         </QueryClientProvider>

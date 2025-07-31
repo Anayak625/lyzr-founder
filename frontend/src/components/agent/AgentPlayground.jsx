@@ -6,6 +6,9 @@ import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, RefreshCcw
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 const DEFAULT_WIDGET_SETTINGS = {
     theme_color: '#16a34a',
     header_text: 'Chat with an AI Assistant',
@@ -61,8 +64,10 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
       return;
     }
     setConnectionStatus('connecting');
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${import.meta.env.VITE_REACT_APP_WEBSOCKET_HOST}/ws/chat/${agent.id}/${sessionId}/`;
+    const apiUrl = import.meta.env.VITE_REACT_APP_API_BASE_URL;
+    const wsProtocol = apiUrl.startsWith('https://') ? 'wss:' : 'ws:';
+    const wsHost = new URL(apiUrl).host;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${agent.id}/${sessionId}/`;
     if (webSocket.current) webSocket.current.close();
     webSocket.current = new WebSocket(wsUrl);
     webSocket.current.onopen = () => setConnectionStatus('open');
@@ -117,7 +122,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
   return (
     <div className="w-full h-full relative">
 
-      <div className={`w-full h-full flex flex-col bg-background rounded-2xl shadow-2xl border overflow-hidden transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={isExpanded ? {} : { height: '0px' } }>
+      <div className={`w-full h-full flex flex-col bg-background rounded-2xl shadow-2xl border overflow-hidden transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={isExpanded ? {height:'600px'} : { height: '0px' } }>
         <div 
           className="p-4 text-white flex items-center justify-between rounded-t-lg flex-shrink-0"
           style={{ backgroundColor: themeColor }}
@@ -132,11 +137,22 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
           </div>
         </div>
         
-        <div className="flex-grow overflow-y-auto p-4 space-y-4 bg-muted/20">
-            {displayedMessages.map((msg) => (<div key={msg.id} className={`flex flex-col items-start gap-2 ${msg.sender === 'USER' ? 'items-end' : ''}`}><div className={`flex items-start gap-3 w-full ${msg.sender === 'USER' ? 'justify-end' : ''}`}>{msg.sender === 'AI' && (<div className="flex-shrink-0 mt-1">{settings.bot_avatar_url ? (<img src={settings.bot_avatar_url} alt="Bot Avatar" className="w-8 h-8 rounded-full object-cover" />) : (<div className="p-2 rounded-full flex items-center justify-center" style={{ backgroundColor: themeColor + '20' }}><Bot className="h-5 w-5" style={{ color: themeColor }} /></div>)}</div>)}<div className={`max-w-md p-3 rounded-lg text-sm break-words shadow-sm ${msg.sender === 'USER' ? 'text-primary-foreground' : 'bg-background'}`} style={msg.sender === 'USER' ? { backgroundColor: themeColor } : {}}>{msg.content}</div>{msg.sender === 'USER' && <div className="p-2 rounded-full bg-muted flex-shrink-0 mt-1"><User className="h-5 w-5" /></div>}</div>{msg.sender === 'AI' && msg.id !== 'init' && (<div className="flex gap-1 ml-12"><Button size="icon" variant="ghost" className={`h-7 w-7 ${msg.feedback === 'POSITIVE' ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => handleFeedback(msg.id, 'POSITIVE')} disabled={!!msg.feedback}><ThumbsUp className="h-4 w-4" /></Button><Button size="icon" variant="ghost" className={`h-7 w-7 ${msg.feedback === 'NEGATIVE' ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => handleFeedback(msg.id, 'NEGATIVE')} disabled={!!msg.feedback}><ThumbsDown className="h-4 w-4" /></Button></div>)}</div>))}
+        <div className="flex-grow overflow-y-auto p-4 space-y-4" style={{ backgroundColor: 'rgba(255, 255, 255, 1)' }}>
+            {displayedMessages.map((msg) => (<div key={msg.id} className={`flex flex-col items-start gap-2 ${msg.sender === 'USER' ? 'items-end' : ''}`}><div className={`flex items-start gap-3 w-full ${msg.sender === 'USER' ? 'justify-end' : ''}`}>{msg.sender === 'AI' && (<div className="flex-shrink-0 mt-1">{settings.bot_avatar_url ? (<img src={settings.bot_avatar_url} alt="Bot Avatar" className="w-8 h-8 rounded-full object-cover" />) : (<div className="p-2 rounded-full flex items-center justify-center" style={{ backgroundColor: themeColor + '20' }}><Bot className="h-5 w-5" style={{ color: themeColor }} /></div>)}</div>)}<div className={`max-w-md p-3 rounded-lg text-sm break-words shadow-sm ${msg.sender === 'USER' ? 'text-primary-foreground user-msg-box' : 'bg-background'}`} style={msg.sender === 'USER' ? { backgroundColor: themeColor } : {}}><div className="prose prose-sm dark:prose-invert max-w-none">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {msg.content}
+                                        </ReactMarkdown>
+                                    </div></div>{msg.sender === 'USER' && <div className="p-2 rounded-full bg-muted flex-shrink-0 mt-1"><User className="h-5 w-5" /></div>}</div>{msg.sender === 'AI' && msg.id !== 'init' && (<div className="flex gap-1 ml-12"><Button size="icon" variant="ghost" className={`h-7 w-7 ${msg.feedback === 'POSITIVE' ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => handleFeedback(msg.id, 'POSITIVE')} disabled={!!msg.feedback}><ThumbsUp className="h-4 w-4" /></Button><Button size="icon" variant="ghost" className={`h-7 w-7 ${msg.feedback === 'NEGATIVE' ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => handleFeedback(msg.id, 'NEGATIVE')} disabled={!!msg.feedback}><ThumbsDown className="h-4 w-4" /></Button></div>)}</div>))}
             {isSending && !messages.find(m => m.id.startsWith('user_')) && ( <div className="flex items-start gap-3"><div className="p-2 rounded-full bg-primary/10 flex-shrink-0"><Bot className="h-5 w-5 text-primary" /></div><div className="max-w-md p-3 rounded-lg text-sm bg-background flex items-center"><Loader2 className="h-4 w-4 animate-spin" /></div></div>)}
             <div ref={messagesEndRef} />
         </div>
+        <style>
+        {`
+          .user-msg-box p {
+            color: white;
+          }
+        `}
+        </style>
         
         <div className="p-4 border-t rounded-b-lg">
           {connectionStatus === 'connecting' && <div className="flex justify-center text-sm items-center text-muted-foreground mb-2"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Connecting...</div>}
