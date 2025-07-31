@@ -64,10 +64,19 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
       return;
     }
     setConnectionStatus('connecting');
-    const apiUrl = import.meta.env.VITE_REACT_APP_API_BASE_URL;
-    const wsProtocol = apiUrl.startsWith('https://') ? 'wss:' : 'ws:';
-    const wsHost = new URL(apiUrl).host;
-    const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${agent.id}/${sessionId}/`;
+    const getChatWebSocketURL = (agentId, sessionId) => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostname = window.location.hostname;
+
+      const host =
+        hostname === 'localhost' || hostname === '127.0.0.1'
+          ? '127.0.0.1:8000'
+          : import.meta.env.VITE_APP_WS_URL;
+
+      return `${protocol}//${host}/ws/chat/${agentId}/${sessionId}/`;
+    };
+
+    const wsUrl=getChatWebSocketURL(agent.id, sessionId);
     if (webSocket.current) webSocket.current.close();
     webSocket.current = new WebSocket(wsUrl);
     webSocket.current.onopen = () => setConnectionStatus('open');
@@ -161,7 +170,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
       <div className={`absolute bottom-0 right-0 transition-opacity duration-300 ${!isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <Button
           onClick={() => setIsExpanded(true)}
-          className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
+          className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
           style={{ backgroundColor: themeColor }}
         >
           <LauncherIcon className="w-8 h-8 text-white" />
@@ -170,17 +179,17 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
       <style>
         {`
           .user-msg-box p {
-            color: white;
+            color: white !important;
           }
           .user-msg-box{
-            border-radius:8px;
+            border-radius:8px !important;
           }
           .bot-msg-box{
-            border-radius:8px;
+            border-radius:8px !important;
           }
           .input-button-box button,
           .input-button-box input{
-            border-radius:8px;
+            border-radius:8px !important;
           }
         `}
       </style>
