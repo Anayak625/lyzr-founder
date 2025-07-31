@@ -36,9 +36,7 @@ const AgentSelector = () => {
     onSuccess: (response) => {
       const newAgent = response.data;
       toast({ title: 'Agent created successfully!' });
-      // After creating, invalidate the agents query to refetch the list
       queryClient.invalidateQueries({ queryKey: ['agents'] }).then(() => {
-        // Once refetched, the provider's useEffect will set the new agent as active
         setActiveAgentId(newAgent.id);
       });
       setCreateDialogOpen(false);

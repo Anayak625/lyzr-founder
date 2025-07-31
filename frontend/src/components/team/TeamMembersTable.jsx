@@ -45,14 +45,13 @@ import { Badge } from '@/components/ui/badge';
 import { PlusCircle, Trash2, Mail, Loader2, Crown, User } from 'lucide-react';
 
 export const TeamMembersTable = ({ members }) => {
-    const { user: currentUser } = useAuth(); // Assuming useAuth provides the logged-in user's details
+    const { user: currentUser } = useAuth(); 
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [isInviteDialogOpen, setInviteDialogOpen] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState('Member');
     
-    // This is a mock. In a real app, the user's role would come from the `currentUser` object.
     const currentUserRole = 'Owner'; 
 
     const inviteMutation = useMutation({

@@ -3,8 +3,6 @@ import { AlertCircle } from 'lucide-react';
 import apiClient from '@/api/apiClient';
 
 const checkApiHealth = async () => {
-    // This endpoint should be very lightweight on the backend.
-    // It's just to check if the Lyzr API is responsive.
     const { data } = await apiClient.get('/health/lyzr-api-status/');
     return data;
 }
@@ -13,8 +11,8 @@ const ApiHealthBanner = () => {
     const { data: healthStatus } = useQuery({
         queryKey: ['apiHealth'],
         queryFn: checkApiHealth,
-        refetchInterval: 60000, // Refetch every 60 seconds
-        staleTime: 55000,
+        refetchInterval: 3600000, 
+        staleTime: 3550000,
     });
 
     if (healthStatus?.status === 'healthy') {

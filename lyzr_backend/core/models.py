@@ -376,7 +376,6 @@ class TicketNote(models.Model):
         return f"Note by {self.user.email} on conversation {self.conversation.id}"
 
 
-# New model for tracking API usage and costs
 class APIUsage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_usage')

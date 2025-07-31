@@ -37,7 +37,6 @@ class AgentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
 
     def get_queryset(self):
-        # Prefetch related data to optimize database queries
         return Agent.objects.select_related(
             'knowledge_base', 'user'
         ).prefetch_related(
@@ -70,9 +69,7 @@ Key Instructions:
                     content=DEFAULT_KNOWLEDGE_TEXT
                 )
             
-            # After transaction, queue background tasks
             create_lyzr_stack_task.delay(agent.id)
-            # NEW: Immediately index the default instructions
             index_knowledge_source_task.delay(default_source.id)
 
         except Exception as e:
@@ -84,11 +81,8 @@ Key Instructions:
         THE FIX: Override this method to trigger a background task
         after a successful update to our local database.
         """
-        # First, save the changes to our local database.
-        # The serializer instance passed here already has the validated data.
         instance = serializer.save()
 
-        # Now, queue the Celery task to sync these changes with the Lyzr API.
         logger.info(f"Queuing Lyzr update task for agent {instance.id}")
         update_lyzr_agent_task.delay(instance.id)
         
@@ -114,7 +108,8 @@ class PublicAgentConfigView(generics.RetrieveAPIView):
     queryset = Agent.objects.filter(is_active=True)
     serializer_class = PublicAgentConfigSerializer
     permission_classes = (permissions.AllowAny,)
-    lookup_field = 'id'
+    lookup_field= 'id'
+    lookup_url_kwarg = 'id'
 
 class TicketViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TicketListSerializer

@@ -4,7 +4,6 @@ import { Bot, Settings, MessageSquare } from 'lucide-react';
 import AgentSettings from '@/components/agent/AgentSettings';
 import AgentPlayground from '@/components/agent/AgentPlayground';
 import AgentSelector from '@/components/agent/AgentSelector';
-import WidgetPreview from '@/components/agent/WidgetPreview';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,15 +14,8 @@ const DashboardView = ({ agent, previewSettings }) => (
         <AgentPlayground 
             key={`playground-${agent?.id}`} 
             agent={agent} 
+            initialExpanded={true}
         />
-        {/* <div className="hidden lg:block">
-            {previewSettings && (
-                <WidgetPreview 
-                    key={`preview-${agent?.id}`} 
-                    settings={previewSettings} 
-                />
-            )}
-        </div> */}
     </div>
 );
 
@@ -39,20 +31,18 @@ const SettingsView = ({ agent, onSettingsChange }) => (
 
 
 const AgentDashboardPage = () => {
-  const { view, agentId } = useParams(); // Get 'dashboard' or 'settings' from URL
+  const { view, agentId } = useParams(); 
   const navigate = useNavigate();
   const { activeAgent, setActiveAgentId, isLoadingAgents, agents } = useActiveAgent();
   
   const [previewSettings, setPreviewSettings] = useState(null);
 
-  // Sync the active agent ID from the URL with our context provider
   useEffect(() => {
     if (agentId) {
       setActiveAgentId(agentId);
     }
   }, [agentId, setActiveAgentId]);
 
-  // Update the live preview settings whenever the active agent changes
   useEffect(() => {
     if (activeAgent?.widget_settings) {
         setPreviewSettings(activeAgent.widget_settings);
@@ -90,7 +80,6 @@ const AgentDashboardPage = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header with Agent Selector and View Navigation */}
       <div className="flex justify-between items-center">
         <AgentSelector />
         {view === 'dashboard' ? (
@@ -106,7 +95,6 @@ const AgentDashboardPage = () => {
         )}
       </div>
 
-      {/* Conditionally render the correct view based on the URL */}
       {view === 'dashboard' && activeAgent &&
         <DashboardView agent={activeAgent} previewSettings={previewSettings} />
       }

@@ -59,14 +59,12 @@ export const AuthProvider = ({ children }) => {
   const completeOnboarding = async () => {
     try {
         await updateUserDetails({ onboarding_completed: true });
-        // Optimistically update the user data in the cache
         queryClient.setQueryData(['user'], (oldData) => ({
             ...oldData,
             onboarding_completed: true,
         }));
     } catch (error) {
         console.error("Failed to update onboarding status", error);
-        // If it fails, you could potentially roll back the optimistic update
     }
   };
 

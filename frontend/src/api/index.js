@@ -10,7 +10,7 @@ export const updateUserDetails = (data) => apiClient.patch('/auth/me/', data);
 // --- Agents ---
 export const fetchAgents = async () => {
   const response = await apiClient.get('/agents/');
-  return response.data; // FIX: Returns the { count, results, ... } object
+  return response.data; 
 };
 export const fetchAgentDetails = async (agentId) => {
   const response = await apiClient.get(`/agents/${agentId}/`);
@@ -75,7 +75,6 @@ export const addTicketNote = async (ticketId, note) => {
 export const fetchDashboardAnalytics = async () => {
   const response = await apiClient.get('/dashboard/analytics/');
   
-  // Ensure fallback structure to avoid undefined issues
   return {
     data: {
       kpis: {
@@ -89,7 +88,7 @@ export const fetchDashboardAnalytics = async () => {
       },
       chat_volume_trends: [],
       recent_tickets: [],
-      ...response.data  // overwrite fallbacks if real data exists
+      ...response.data 
     }
   };
 };
@@ -99,18 +98,16 @@ export const fetchPublicAgentConfig = async (agentId) => {
   return response.data;
 };
 
-// --- NEW: Feedback ---
+// --- Feedback ---
 export const submitMessageFeedback = (messageId, feedback) => apiClient.post('/feedback/', { message_id: messageId, feedback });
 
 
 
 
 
-
-// --- NEW: Team Management ---
+// Mocked API Calls for Team Management future implementation
+// --- Team Management ---
 export const fetchTeamMembers = () => {
-  // Mocked response. The backend would fetch users belonging to the same team/organization.
-  // We'll simulate this by returning the current user as the owner and a mock member.
   console.warn("API CALL: fetchTeamMembers() is mocked.");
   return Promise.resolve({
     data: [
@@ -122,27 +119,16 @@ export const fetchTeamMembers = () => {
 };
 
 export const inviteTeamMember = (email, role) => {
-  // Mocked response. The backend would send an invite email.
   console.warn("API CALL: inviteTeamMember() is mocked.");
-  return apiClient.post('/team/invite/', { email, role }); // This will likely fail, but shows intent
-  // For demonstration, we'll return a success promise.
-  // return Promise.resolve({
-  //   data: { success: true, message: `Invitation sent to ${email}.` }
-  // });
+  return apiClient.post('/team/invite/', { email, role }); 
 };
 
 export const removeTeamMember = (memberId) => {
-  // Mocked response. The backend would remove the user from the team.
   console.warn("API CALL: removeTeamMember() is mocked.");
-  return apiClient.delete(`/team/members/${memberId}/`); // This will likely fail, but shows intent
-  // For demonstration, we'll return a success promise.
-  // return Promise.resolve({
-  //   data: { success: true, message: `Member removed.` }
-  // });
+  return apiClient.delete(`/team/members/${memberId}/`);
 };
 
 export const updateMemberRole = (memberId, role) => {
-    // Mocked response.
     console.warn("API CALL: updateMemberRole() is mocked.");
     return apiClient.patch(`/team/members/${memberId}/`, { role });
 };

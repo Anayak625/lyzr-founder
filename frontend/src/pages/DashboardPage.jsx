@@ -8,10 +8,8 @@ import { Link } from 'react-router-dom';
 import { MessageSquare, CheckCircle, AlertTriangle, Percent, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-// Utility to display "—" if value is null or undefined
 const displayValue = (val) => (val === null || val === undefined ? '—' : val);
 
-// Reusable KPI Card Component
 const KpiCard = ({ title, value, icon: Icon }) => (
   <Card>
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

@@ -1,483 +1,276 @@
-# Enhanced WebSocket Consumer with comprehensive error handling and fixes
+# chat/consumers.py
 
 import json
 import logging
 import uuid
-import asyncio
-from typing import Dict, Any, Optional, List
-from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
-from channels.exceptions import DenyConnection
-from django.core.exceptions import ValidationError
-from .models import Agent, KnowledgeBase, Conversation, Message
-from .services.lyzr_client import LyzrClient, LyzrAPIError
-from .tasks import summarize_conversation_task
 from django.utils import timezone
-
+from core.models import Agent, Conversation, Message, KnowledgeBase
+from core.services.lyzr_client import LyzrClient, LyzrAPIError
 
 logger = logging.getLogger(__name__)
 
-
-class ChatConsumer(AsyncWebsocketConsumer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.agent = None
-        self.conversation = None
-        self.conversation_group_name = None
-        self.client = None
-        self.connection_established = False
-
+class ChatConsumer(AsyncJsonWebsocketConsumer):
+    """
+    A robust WebSocket consumer for real-time chat that handles:
+    - Connection authentication and validation.
+    - Persistent conversation history with a database.
+    - Real-time message broadcasting to the correct session.
+    - Interaction with the Lyzr AI service.
+    - Saving user feedback for messages.
+    """
+    
     async def connect(self):
-        """Enhanced connection handling with proper validation"""
+        """
+        Handles new WebSocket connections.
+        Validates the agent, gets/creates a conversation, joins a group,
+        and sends the chat history to the client.
+        """
+        self.agent_id = self.scope['url_route']['kwargs']['agent_id']
+        self.session_id = self.scope['url_route']['kwargs']['session_id']
+        self.room_group_name = f'chat_{self.session_id}'
+
         try:
-            self.agent_id = self.scope['url_route']['kwargs']['agent_id']
-            self.session_id = self.scope['url_route']['kwargs']['session_id']
-            
-            # Validate UUID format
-            try:
-                uuid.UUID(str(self.agent_id))
-            except ValueError:
-                logger.warning(f"Invalid agent_id format: {self.agent_id}")
-                await self.close(code=4000)
-                return
-            
-            # Get agent with error handling
-            self.agent = await self.get_agent()
-            if not self.agent:
-                logger.warning(f"Agent not found: {self.agent_id}")
+            # 1. Validate Agent
+            self.agent = await self.get_agent(self.agent_id)
+            if not self.agent or not self.agent.is_active or not self.agent.lyzr_agent_id:
+                logger.warning(f"Connection denied for agent_id '{self.agent_id}': Agent not found, inactive, or not configured.")
                 await self.close(code=4004)
                 return
-                
-            if not (self.agent.lyzr_agent_id and self.agent.is_active):
-                logger.warning(f"Agent {self.agent_id} is not properly configured or inactive")
-                await self.close(code=4003)
-                return
 
-            # Create or get conversation
-            try:
-                self.conversation = await self.get_or_create_conversation()
-            except Exception as e:
-                logger.error(f"Failed to create conversation: {e}")
-                await self.close(code=4005)
-                return
+            # 2. Get or Create a Conversation record in the database
+            self.conversation = await self.get_or_create_conversation(self.agent.id, self.session_id)
             
-            # Setup group name and join group
-            self.conversation_group_name = f'chat_{self.conversation.id}'
-            await self.channel_layer.group_add(self.conversation_group_name, self.channel_name)
+            # 3. Join the room group for this specific session
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
             
-            # Accept connection
+            # 4. Accept the connection
             await self.accept()
-            self.connection_established = True
+            logger.info(f"WebSocket connected for agent '{self.agent_id}' in session '{self.session_id}'.")
             
-            logger.info(f"WebSocket connected for agent {self.agent_id}, session {self.session_id}")
-            
-            # Send connection confirmation with history
-            try:
-                history = await self.get_message_history()
-                await self.send(text_data=json.dumps({
-                    'event_type': 'connection_established',
-                    'conversation_id': str(self.conversation.id),
-                    'history': history,
-                    'status': 'connected'
-                }))
-            except Exception as e:
-                logger.error(f"Failed to send connection confirmation: {e}")
-                # Don't close connection for this, just log the error
-                
+            # 5. Send the existing chat history to the newly connected client
+            await self.send_message_history()
+
         except Exception as e:
-            logger.error(f"Unexpected error during connection: {e}")
-            await self.close(code=4500)
+            logger.error(f"Unexpected error during connect for agent '{self.agent_id}': {e}", exc_info=True)
+            await self.close()
 
     async def disconnect(self, close_code):
-        """Enhanced disconnect handling with cleanup"""
-        logger.info(f"WebSocket disconnecting for session {self.session_id}, code: {close_code}")
-        
-        try:
-            # Leave group if we joined it
-            if hasattr(self, 'conversation_group_name') and self.conversation_group_name:
-                await self.channel_layer.group_discard(self.conversation_group_name, self.channel_name)
-            
-            # Trigger conversation summarization if we have enough messages
-            if hasattr(self, 'conversation') and self.conversation:
-                try:
-                    message_count = await self.get_message_count()
-                    if message_count >= 4:  # Only summarize if enough messages
-                        summarize_conversation_task.delay(self.conversation.id)
-                except Exception as e:
-                    logger.error(f"Failed to trigger summarization: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Error during disconnect cleanup: {e}")
-        finally:
-            # Mark connection as closed
-            self.connection_established = False
+        """
+        Handles WebSocket disconnections.
+        Cleans up by leaving the room group.
+        """
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        logger.info(f"WebSocket disconnected for session '{self.session_id}' with code: {close_code}")
 
-    async def receive(self, text_data):
-        """Enhanced message receiving with validation and error handling"""
-        if not self.connection_established:
-            logger.warning("Received message on non-established connection")
+    async def receive_json(self, content):
+        """
+        Receives messages from the WebSocket client.
+        Routes the message to the appropriate handler based on 'event_type'.
+        """
+        event_type = content.get('event_type')
+        
+        handlers = {
+            'user_message': self.handle_user_message,
+            'feedback': self.handle_feedback,
+        }
+        
+        handler = handlers.get(event_type)
+        if handler:
+            await handler(content)
+        else:
+            logger.warning(f"Unknown event type received in session '{self.session_id}': {event_type}")
+
+    # --- Event Handlers ---
+
+    async def handle_user_message(self, event_data):
+        """
+        Handles incoming messages from the user.
+        Saves the message, gets a response from the AI, saves the AI response,
+        and broadcasts it back to the client.
+        """
+        message_text = event_data.get('message', '').strip()
+        if not message_text:
+            return
+
+        # 1. Save the user's message to the database
+        await self.save_message('USER', message_text)
+        
+        # 2. Get a response from the Lyzr AI service
+        try:
+            client = LyzrClient()
+            rag_id = await self.get_rag_id(self.agent)
+
+            # Note: Using database_sync_to_async for the blocking network call
+            response_data = await database_sync_to_async(client.get_chat_response)(
+                agent_id=self.agent.lyzr_agent_id,
+                session_id=self.session_id,
+                message=message_text,
+                user_email=self.session_id, # Use session_id as a unique user identifier for Lyzr
+                rag_id=rag_id
+            )
+            
+            ai_content = response_data.get('response', "I'm sorry, I encountered an error and couldn't respond.")
+            
+            # 3. Save the AI's response to the database
+            ai_message_obj = await self.save_message('AI', ai_content)
+
+            # 4. Broadcast the new AI message to the client
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'broadcast_message', # This calls the 'broadcast_message' method below
+                    'message': {
+                        'id': str(ai_message_obj.id),
+                        'sender': 'AI',
+                        'content': ai_content,
+                        'feedback': None
+                    }
+                }
+            )
+
+        except LyzrAPIError as e:
+            logger.error(f"Lyzr API Error for agent '{self.agent.id}': {e}")
+            await self.send_error_message("My apologies, I'm having trouble connecting to my core functions right now. Please try again in a moment.")
+        except Exception as e:
+            logger.error(f"General Error handling user message for agent '{self.agent.id}': {e}", exc_info=True)
+            await self.send_error_message("An unexpected error occurred. Please try your message again.")
+
+    async def handle_feedback(self, event_data):
+        """
+        Handles feedback submissions from the client.
+        Saves the feedback to the corresponding message in the database.
+        """
+        message_id = event_data.get('message_id')
+        feedback = event_data.get('feedback') # Expects 'POSITIVE' or 'NEGATIVE'
+        
+        if not all([message_id, feedback]):
+            logger.warning(f"Invalid feedback event received: {event_data}")
             return
             
-        try:
-            # Parse and validate message data  
-            try:
-                data = json.loads(text_data)
-            except json.JSONDecodeError:
-                await self.send_error("Invalid JSON format")
-                return
-            
-            event_type = data.get('event_type')
-            
-            if event_type == 'user_message':
-                await self.handle_user_message(data)
-            elif event_type == 'feedback':
-                await self.handle_feedback(data)
-            elif event_type == 'ping':
-                await self.handle_ping()
-            else:
-                logger.warning(f"Unknown event type received: {event_type}")
-                await self.send_error(f"Unknown event type: {event_type}")
-                
-        except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            await self.send_error("Internal server error processing message")
-
-    async def handle_user_message(self, data: Dict[str, Any]):
-        """Enhanced user message handling with better error handling"""
-        try:
-            message_content = data.get('message', '').strip()
-            
-            if not message_content:
-                await self.send_error("Empty message content")
-                return
-            
-            if len(message_content) > 10000:  # Reasonable limit
-                await self.send_error("Message too long")
-                return
-            
-            # Save user message
-            try:
-                user_message = await self.save_message(
-                    sender_type=Message.Sender.USER, 
-                    content=message_content
-                )
-            except Exception as e:
-                logger.error(f"Failed to save user message: {e}")
-                await self.send_error("Failed to save message")
-                return
-            
-            # Broadcast user message to group
-            await self.channel_layer.group_send(self.conversation_group_name, {
-                'type': 'chat_message',
-                'message_id': str(user_message.id),
-                'sender': 'USER',
-                'content': user_message.content,
-                'created_at': user_message.created_at.isoformat()
-            })
-            
-            # Get AI response
-            await self.get_ai_response(message_content)
-            
-        except Exception as e:
-            logger.error(f"Error handling user message: {e}")
-            await self.send_error("Failed to process message")
-
-    async def get_ai_response(self, message_content: str):
-        """Get AI response with comprehensive error handling"""
-        try:
-            # Initialize client if not exists
-            if not self.client:
-                self.client = LyzrClient()
-            
-            # Get RAG ID
-            rag_id = await self.get_rag_id()
-            
-            # Make API call with timeout handling
-            try:
-                api_response_data = await database_sync_to_async(self.client.get_chat_response)(
-                    agent_id=self.agent.lyzr_agent_id,
-                    session_id=self.session_id,
-                    message=message_content,
-                    user_email=self.agent.user.email,
-                    rag_id=rag_id
-                )
-                
-                logger.debug(f"Received from Lyzr API: {api_response_data}")
-                
-            except LyzrAPIError as e:
-                logger.error(f"Lyzr API error: {e}")
-                await self.send_ai_error("I'm experiencing technical difficulties. Please try again.")
-                return
-            except Exception as e:
-                logger.error(f"Unexpected API error: {e}")
-                await self.send_ai_error("I'm sorry, I couldn't process that right now.")
-                return
-            
-            # Parse AI response with fallbacks
-            ai_response_content = self.parse_ai_response(api_response_data)
-            
-            # Save AI message
-            try:
-                ai_message = await self.save_message(
-                    sender_type=Message.Sender.AI, 
-                    content=ai_response_content
-                )
-            except Exception as e:
-                logger.error(f"Failed to save AI message: {e}")
-                # Still send the response even if save fails
-                ai_message = type('obj', (object,), {
-                    'id': 'temp_id',
-                    'content': ai_response_content,
-                    'created_at': timezone.now()
-                })
-            
-            # Broadcast AI response
-            await self.channel_layer.group_send(self.conversation_group_name, {
-                'type': 'chat_message',
-                'message_id': str(ai_message.id),
-                'sender': 'AI',
-                'content': ai_message.content,
-                'created_at': ai_message.created_at.isoformat()
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting AI response: {e}")
-            await self.send_ai_error("I encountered an unexpected error. Please try again.")
-
-    def parse_ai_response(self, api_response_data: Dict[str, Any]) -> str:
-        """Parse AI response with multiple fallback strategies"""
-        default_response = "I'm sorry, I could not process that request."
+        success = await self.save_feedback(message_id, feedback)
         
-        if not isinstance(api_response_data, dict):
-            logger.warning(f"Invalid response format: {type(api_response_data)}")
-            return default_response
-        
-        # Try various response field names
-        response_fields = ['response', 'message', 'answer', 'text', 'content', 'result']
-        
-        for field in response_fields:
-            if field in api_response_data:
-                response_value = api_response_data[field]
-                
-                if isinstance(response_value, dict):
-                    # If nested, try common sub-fields
-                    for subfield in ['response', 'message', 'text', 'content']:
-                        if subfield in response_value:
-                            content = response_value[subfield]
-                            if isinstance(content, str) and content.strip():
-                                return content.strip()
-                elif isinstance(response_value, str) and response_value.strip():
-                    return response_value.strip()
-        
-        logger.warning(f"Could not extract response from: {api_response_data}")
-        return default_response
-
-    async def handle_feedback(self, data: Dict[str, Any]):
-        """Handle feedback with validation"""
-        try:
-            message_id = data.get('message_id')
-            feedback_value = data.get('feedback')
-            
-            if not message_id or feedback_value not in ['positive', 'negative']:
-                await self.send_error("Invalid feedback data")
-                return
-            
-            await self.save_feedback(message_id, feedback_value)
-            await self.send(text_data=json.dumps({
+        # Send a confirmation back to the client so the UI can update
+        if success:
+            await self.send_json({
                 'event_type': 'feedback_confirmation',
-                'message_id': message_id,
-                'status': 'saved'
-            }))
-            
-        except Exception as e:
-            logger.error(f"Error handling feedback: {e}")
-            await self.send_error("Failed to save feedback")
+                'message_id': message_id
+            })
 
-    async def handle_ping(self):
-        """Handle ping requests for connection health"""
-        await self.send(text_data=json.dumps({
-            'event_type': 'pong',
-            'timestamp': timezone.now().isoformat()
-        }))
+    # --- Broadcasting and Sending Methods ---
 
-    async def send_error(self, message: str):
-        """Send error message to client"""
-        await self.send(text_data=json.dumps({
-            'event_type': 'error',
-            'message': message,
-            'timestamp': timezone.now().isoformat()
-        }))
+    async def send_message_history(self):
+        """
 
-    async def send_ai_error(self, message: str):
-        """Send AI error as a chat message"""
-        await self.channel_layer.group_send(self.conversation_group_name, {
-            'type': 'chat_message',
-            'sender': 'AI',
-            'content': message,
-            'error': True,
-            'timestamp': timezone.now().isoformat()
+        Fetches all messages for the current conversation and sends them one by one
+        to the client. This populates the chat on connection.
+        """
+        messages = await self.get_message_history()
+        for msg in messages:
+            # We use group_send to ensure it only goes to the single client in the group
+            # that just connected, matching the `broadcast_message` format.
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'broadcast_message',
+                    'message': msg
+                }
+            )
+
+    async def broadcast_message(self, event):
+        """
+        This method is called by `channel_layer.group_send` with `type: 'broadcast_message'`.
+        It sends the provided message data to the client.
+        """
+        await self.send_json({
+            'event_type': 'new_message',
+            'message': event['message']
         })
 
-    async def chat_message(self, event):
-        """Send chat message to WebSocket"""
-        message_data = {
+    async def send_error_message(self, error_text: str):
+        """Sends a formatted error message to the client as if it were an AI message."""
+        await self.send_json({
             'event_type': 'new_message',
             'message': {
-                'id': event.get('message_id'),
-                'sender': event['sender'],
-                'content': event['content'],
-                'created_at': event.get('created_at'),
-                'error': event.get('error', False)
+                'id': f'error_{uuid.uuid4()}',
+                'sender': 'AI',
+                'content': error_text,
+                'feedback': None,
+                'is_error': True # Custom flag for the frontend if needed
             }
-        }
-        await self.send(text_data=json.dumps(message_data))
-        
+        })
+
+    # --- Database Helper Methods (decorated with @database_sync_to_async) ---
+
     @database_sync_to_async
-    def get_agent(self) -> Optional[Agent]:
-        """Get agent with proper error handling"""
+    def get_agent(self, agent_id: str):
         try:
-            return Agent.objects.select_related('user').get(id=self.agent_id, is_active=True)
+            return Agent.objects.select_related('knowledge_base').get(id=agent_id)
         except Agent.DoesNotExist:
-            logger.warning(f"Agent {self.agent_id} not found")
             return None
-        except Exception as e:
-            logger.error(f"Error getting agent {self.agent_id}: {e}")
-            return None
-            
+
     @database_sync_to_async
-    def get_or_create_conversation(self) -> Conversation:
-        """Get or create conversation with error handling"""
+    def get_or_create_conversation(self, agent_id: uuid.UUID, session_id: str):
+        conversation, created = Conversation.objects.get_or_create(
+            agent_id=agent_id,
+            end_user_id=session_id,
+            defaults={'status': Conversation.Status.ACTIVE}
+        )
+        if created:
+            logger.info(f"Created new conversation '{conversation.id}' for session '{session_id}'.")
+        return conversation
+
+    @database_sync_to_async
+    def save_message(self, sender: str, content: str):
+        msg = Message.objects.create(
+            conversation=self.conversation,
+            sender_type=sender,
+            content=content
+        )
+        # Touch the conversation to update its 'updated_at' timestamp,
+        # which is useful for sorting tickets.
+        self.conversation.updated_at = timezone.now()
+        self.conversation.save(update_fields=['updated_at'])
+        return msg
+
+    @database_sync_to_async
+    def get_message_history(self):
+        messages = Message.objects.filter(conversation=self.conversation).order_by('created_at')
+        return [
+            {
+                'id': str(msg.id),
+                'sender': msg.sender_type,
+                'content': msg.content,
+                'feedback': msg.feedback,
+            }
+            for msg in messages
+        ]
+
+    @database_sync_to_async
+    def save_feedback(self, message_id: str, feedback: str):
         try:
-            conversation, created = Conversation.objects.get_or_create(
-                agent=self.agent,
-                end_user_id=self.session_id,
-                defaults={'status': Conversation.Status.ACTIVE}
-            )
-            
-            if created:
-                logger.info(f"Created new conversation {conversation.id}")
-            else:
-                logger.debug(f"Using existing conversation {conversation.id}")
+            # Validate feedback value
+            if feedback not in [Message.Feedback.POSITIVE, Message.Feedback.NEGATIVE]:
+                return False
                 
-            return conversation
+            message = Message.objects.get(id=message_id, conversation=self.conversation)
+            message.feedback = feedback
+            message.save()
+            logger.info(f"Feedback '{feedback}' saved for message '{message_id}'.")
+            return True
+        except Message.DoesNotExist:
+            logger.warning(f"Attempted to save feedback for non-existent message_id: {message_id}")
+            return False
         except Exception as e:
-            logger.error(f"Error creating conversation: {e}")
-            raise
+            logger.error(f"Error saving feedback for message '{message_id}': {e}")
+            return False
 
     @database_sync_to_async
-    def get_message_history(self) -> List[Dict[str, Any]]:
-        """Get message history with pagination"""
+    def get_rag_id(self, agent: Agent):
         try:
-            messages = Message.objects.filter(
-                conversation=self.conversation
-            ).order_by('created_at')[:50]  # Limit to recent messages
-            
-            return [
-                {
-                    'id': str(msg.id),
-                    'sender': msg.sender_type,
-                    'content': msg.content,
-                    'created_at': msg.created_at.isoformat(),
-                    'feedback': msg.feedback
-                } for msg in messages
-            ]
-        except Exception as e:
-            logger.error(f"Error getting message history: {e}")
-            return []
-
-    @database_sync_to_async
-    def get_message_count(self) -> int:
-        """Get message count for conversation"""
-        try:
-            return Message.objects.filter(conversation=self.conversation).count()
-        except Exception as e:
-            logger.error(f"Error getting message count: {e}")
-            return 0
-
-    @database_sync_to_async
-    def save_message(self, sender_type: str, content: str) -> Message:
-        """Save message with validation"""
-        try:
-            if len(content) > 10000:  # Reasonable limit
-                content = content[:10000] + "... [truncated]"
-                
-            return Message.objects.create(
-                conversation=self.conversation,
-                sender_type=sender_type,
-                content=content
-            )
-        except Exception as e:
-            logger.error(f"Error saving message: {e}")
-            raise
-
-    @database_sync_to_async
-    def save_feedback(self, message_id: str, feedback_value: str):
-        """Save feedback with validation"""
-        try:
-            feedback = Message.Feedback.POSITIVE if feedback_value == 'positive' else Message.Feedback.NEGATIVE
-            
-            updated_count = Message.objects.filter(
-                id=uuid.UUID(message_id),
-                conversation=self.conversation
-            ).update(feedback=feedback)
-            
-            if updated_count == 0:
-                logger.warning(f"No message found to update feedback: {message_id}")
-            else:
-                logger.info(f"Updated feedback for message {message_id}: {feedback_value}")
-                
-        except (ValueError, ValidationError) as e:
-            logger.warning(f"Invalid message_id format {message_id}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error saving feedback: {e}")
-            raise
-    
-    @database_sync_to_async
-    def get_rag_id(self) -> Optional[str]:
-        """Get RAG ID with error handling"""
-        try:
-            return self.agent.knowledge_base.lyzr_rag_id
+            # Efficiently check if knowledge_base exists and get its lyzr_rag_id
+            return agent.knowledge_base.lyzr_rag_id
         except KnowledgeBase.DoesNotExist:
-            logger.debug(f"No knowledge base found for agent {self.agent_id}")
             return None
-        except Exception as e:
-            logger.error(f"Error getting RAG ID: {e}")
-            return None
-
-
-# Additional utility functions for WebSocket management
-
-class ConnectionManager:
-    """Manage WebSocket connections and health checks"""
-    
-    def __init__(self):
-        self.active_connections = {}
-    
-    def add_connection(self, session_id: str, consumer):
-        self.active_connections[session_id] = consumer
-    
-    def remove_connection(self, session_id: str):
-        self.active_connections.pop(session_id, None)
-    
-    def get_connection_count(self) -> int:
-        return len(self.active_connections)
-    
-    async def broadcast_to_all(self, message: Dict[str, Any]):
-        """Broadcast message to all active connections"""
-        disconnected = []
-        
-        for session_id, consumer in self.active_connections.items():
-            try:
-                await consumer.send(text_data=json.dumps(message))
-            except Exception as e:
-                logger.error(f"Failed to send to {session_id}: {e}")
-                disconnected.append(session_id)
-        
-        # Clean up disconnected sessions
-        for session_id in disconnected:
-            self.remove_connection(session_id)
-
-
-# Global connection manager instance
-connection_manager = ConnectionManager()

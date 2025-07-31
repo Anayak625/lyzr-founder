@@ -21,7 +21,7 @@ const TicketDetailView = () => {
         queryKey: ['ticket', ticketId],
         queryFn: () => fetchTicketDetails(ticketId),
     });
-    const ticket = ticketData?.data;
+    const ticket = ticketData;
 
     const statusMutation = useMutation({
         mutationFn: (newStatus) => updateTicketStatus(ticketId, newStatus),
@@ -42,7 +42,7 @@ const TicketDetailView = () => {
         },
         onError: () => toast({ title: "Failed to add note", variant: "destructive" })
     });
-    
+
     const handleAddNote = () => {
         if (!note.trim()) return;
         noteMutation.mutate(note);
@@ -69,7 +69,7 @@ const TicketDetailView = () => {
                         <CardDescription>Subject: {ticket.subject}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
-                        {ticket.messages.map(msg => (
+                        {ticket.messages.length > 0 ? ticket.messages.map(msg => (
                             <div key={msg.id} className={`flex items-start gap-3 ${msg.sender_type === 'USER' ? 'justify-end' : ''}`}>
                                 {msg.sender_type === 'AI' && <div className="p-2 rounded-full bg-primary/10 flex-shrink-0"><Bot className="h-5 w-5 text-primary" /></div>}
                                 <div className={`max-w-xl p-3 rounded-lg shadow-sm ${msg.sender_type === 'USER' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
@@ -78,8 +78,11 @@ const TicketDetailView = () => {
                                 </div>
                                 {msg.sender_type === 'USER' && <div className="p-2 rounded-full bg-muted flex-shrink-0"><User className="h-5 w-5" /></div>}
                             </div>
-                        ))}
+                        )) : (
+                            <p className="text-sm text-center text-muted-foreground py-8">No conversation messages yet.</p>
+                        )}
                     </CardContent>
+
                 </Card>
 
                 <div className="space-y-6 lg:sticky lg:top-8">
@@ -94,9 +97,9 @@ const TicketDetailView = () => {
                                 <p className="text-sm font-medium">Agent</p>
                                 <p className="text-sm text-muted-foreground">{ticket.agent.name}</p>
                             </div>
-                             <div>
+                            <div>
                                 <p className="text-sm font-medium">Status</p>
-                                <Select 
+                                <Select
                                     value={ticket.status}
                                     onValueChange={(newStatus) => statusMutation.mutate(newStatus)}
                                     disabled={statusMutation.isPending}
@@ -118,20 +121,20 @@ const TicketDetailView = () => {
                         <CardHeader><CardTitle>Internal Notes</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
-                            {ticket.notes.length > 0 ? ticket.notes.map(n => (
-                                <div key={n.id} className="text-sm p-3 bg-muted/50 rounded-lg border">
-                                    <p className="font-bold text-xs">{n.user.full_name}</p>
-                                    <p className="whitespace-pre-wrap mt-1">{n.note}</p>
-                                    <p className="text-xs text-muted-foreground text-right mt-2">{new Date(n.created_at).toLocaleString()}</p>
-                                </div>
-                            )) : (
+                                {ticket.notes.length > 0 ? ticket.notes.map(n => (
+                                    <div key={n.id} className="text-sm p-3 bg-muted/50 rounded-lg border">
+                                        <p className="font-bold text-xs">{n.user.full_name}</p>
+                                        <p className="whitespace-pre-wrap mt-1">{n.note}</p>
+                                        <p className="text-xs text-muted-foreground text-right mt-2">{new Date(n.created_at).toLocaleString()}</p>
+                                    </div>
+                                )) : (
                                     <p className="text-sm text-center text-muted-foreground py-4">No internal notes yet.</p>
-                            )}
+                                )}
                             </div>
                             <div className="space-y-2 pt-4 border-t">
-                                <Textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add a new note for your team..."/>
+                                <Textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add a new note for your team..." />
                                 <Button onClick={handleAddNote} disabled={!note.trim() || noteMutation.isPending} className="w-full">
-                                    {noteMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Send className="h-4 w-4 mr-2"/>}
+                                    {noteMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                                     {noteMutation.isPending ? "Adding Note..." : "Add Note"}
                                 </Button>
                             </div>

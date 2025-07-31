@@ -52,9 +52,17 @@ class AgentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'lyzr_agent_id', 'user', 'knowledge_base', 'created_at', 'updated_at']
 
 class PublicAgentConfigSerializer(serializers.ModelSerializer):
+    system_prompt = serializers.SerializerMethodField()
     class Meta:
         model = Agent
         fields = ['name', 'widget_settings', 'system_prompt']
+    
+    def get_system_prompt(self, obj):
+        """
+        Calls the get_system_prompt() method on the Agent model instance.
+        'obj' is the Agent object being serialized.
+        """
+        return obj.get_system_prompt()
 
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:

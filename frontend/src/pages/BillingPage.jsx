@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Check, Crown, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthProvider';
 
-// This data would typically come from an API call related to the user's subscription
 const userPlan = { name: 'Hobby', price: '$0/month' };
 const availablePlans = [
     { name: 'Hobby', price: '$0', features: ['1 Agent', '100 messages/mo', 'Basic Support'], current: true },

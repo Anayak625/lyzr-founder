@@ -1,5 +1,3 @@
-# UPDATED TASKS.PY - With Fixed URL Endpoint Error Handling
-
 import logging
 from celery import shared_task
 import json
@@ -35,7 +33,6 @@ def create_lyzr_stack_task(self, agent_id: str):
         if not agent.lyzr_agent_id:
             logger.info(f"Creating Lyzr agent for local agent {agent_id}")
             
-            ### MODIFIED: Call create_agent with the agent object ###
             agent_response = client.create_agent(agent=agent)
             
             lyzr_agent_id = agent_response.get('agent_id')
@@ -48,7 +45,6 @@ def create_lyzr_stack_task(self, agent_id: str):
             lyzr_agent_id = agent.lyzr_agent_id
 
         logger.info(f"Linking RAG {rag_id} to agent {lyzr_agent_id}")
-        ### MODIFIED: Pass the agent model to the linking function ###
         client.update_agent_with_rag(lyzr_agent_id, rag_id, kb.collection_name, agent)
         logger.info(f"Successfully linked RAG to agent for agent {agent_id}")
 
@@ -97,20 +93,19 @@ def index_knowledge_source_task(self, source_id: str):
 
     except LyzrAPIError as e:
         error_text = str(e).lower()
-        # FIXED: Specific handling for URL not found errors
         if e.status_code == 404 and source.type == 'URL':
             logger.error(f"404 Error indexing URL source {source.id}: Endpoint or URL not found.")
             logger.error(f"URL: {source.content}, Error Detail: {e.response_data}")
             source.status = KnowledgeSource.IndexingStatus.FAILED
             source.error_message = f"URL not found or inaccessible (404 Error). Please check the URL and try again."
             source.save()
-            return # Don't retry 404s
+            return
         
         logger.error(f"Indexing failed for source {source.id}. Error: {e}")
         source.status = KnowledgeSource.IndexingStatus.FAILED
         source.error_message = str(e)
         source.save()
-        if e.status_code not in [404, 422]:  # Don't retry other client errors
+        if e.status_code not in [404, 422]: 
             raise self.retry(exc=e)
                 
     except Exception as exc:
@@ -180,7 +175,6 @@ def retry_failed_knowledge_sources():
     retry_count = 0
     for source in failed_sources:
         try:
-            # Only retry if it's been more than 1 hour since last update
             if (timezone.now() - source.updated_at).seconds > 3600:
                 logger.info(f"Retrying failed knowledge source {source.id}")
                 index_knowledge_source_task.delay(source.id)
@@ -197,8 +191,8 @@ def cleanup_old_conversations():
     from django.utils import timezone
     from datetime import timedelta
     
-    # Delete conversations older than 90 days with no activity
-    cutoff_date = timezone.now() - timedelta(days=90)
+    # Delete conversations older than 7 days with no activity
+    cutoff_date = timezone.now() - timedelta(days=7)
     old_conversations = Conversation.objects.filter(
         updated_at__lt=cutoff_date,
         status=Conversation.Status.RESOLVED
@@ -216,7 +210,6 @@ def generate_usage_reports():
     from django.utils import timezone
     from datetime import timedelta
     
-    # Generate daily usage statistics
     today = timezone.now().date()
     yesterday = today - timedelta(days=1)
     
@@ -232,7 +225,7 @@ def generate_usage_reports():
             created_at__date=yesterday,
             status=KnowledgeSource.IndexingStatus.COMPLETED
         ).count(),
-        'api_errors': 0  # Could be tracked with a separate model
+        'api_errors': 0 
     }
     
     logger.info(f"Daily usage stats: {daily_stats}")
@@ -275,11 +268,10 @@ def update_lyzr_agent_task(self, agent_id: str):
 
         logger.info(f"Syncing updates for agent {agent.id} to Lyzr agent {agent.lyzr_agent_id}")
         
-        ### MODIFIED: Call update_agent with the correct arguments ###
         client.update_agent(
             lyzr_agent_id=agent.lyzr_agent_id,
-            agent=agent, # Pass the whole agent object
-            features=existing_features # Preserve existing features like RAG
+            agent=agent, 
+            features=existing_features 
         )
         
         logger.info(f"Successfully synced agent {agent.id} with Lyzr.")

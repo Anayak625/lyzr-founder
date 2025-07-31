@@ -34,35 +34,24 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 2, // 2 minutes
+      staleTime: 1000 * 60 * 2, 
     },
   },
 });
 
-/**
- * FIXED HELPER COMPONENT
- * This component now handles all three states: loading, agents exist, and no agents exist.
- */
 const AgentRedirector = () => {
-    // Get the full list of agents and the loading status
     const { activeAgent, agents, isLoadingAgents } = useActiveAgent();
     const navigate = useNavigate();
 
     useEffect(() => {
-        // This effect ONLY handles the success case where an agent exists.
         if (!isLoadingAgents && activeAgent) {
             navigate(`/app/agent/${activeAgent.id}/dashboard`, { replace: true });
         }
     }, [activeAgent, isLoadingAgents, navigate]);
 
-    // --- THE FIX ---
-    // If loading is finished and the agent list is empty, render the dashboard page.
-    // The dashboard page itself knows how to display the "Create your first agent" message.
     if (!isLoadingAgents && agents && agents.length === 0) {
         return <AgentDashboardPage />;
     }
-
-    // If we are still loading or waiting for the redirect effect, show the loading message.
     return <div>Loading Agent...</div>; 
 };
 
@@ -83,6 +72,7 @@ const App = () => (
                 <Route path="login" element={<Login />} />
                 <Route path="signup" element={<Signup />} />
             </Route>
+            
 
             {/* --- Protected Application Routes --- */}
             <Route

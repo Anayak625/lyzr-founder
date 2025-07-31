@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
-import ApiHealthBanner from './ApiHealthBanner';
 import { useAuth } from '@/contexts/AuthProvider';
 
 const AppLayout = () => {
@@ -14,7 +13,6 @@ const AppLayout = () => {
       <div className="flex">
         <Sidebar />
         <main className="flex-1 flex flex-col h-screen">
-            <ApiHealthBanner />
             <div className="p-4 sm:p-6 md:p-8 overflow-y-auto flex-1">
                 <Outlet />
             </div>
