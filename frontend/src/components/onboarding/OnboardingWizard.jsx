@@ -13,7 +13,7 @@ const OnboardingWizard = () => {
     const handleComplete = () => {
         completeOnboarding();
         setIsOpen(false);
-        navigate('/app/agent');
+        window.location.href = '/app/agent'; 
     };
 
     return (
