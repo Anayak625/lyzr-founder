@@ -135,13 +135,14 @@ const KnowledgeBaseManager = ({ agent }) => {
             )}
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2" style={{PointerEvent: 'none',opacity:'0.6'}}>
             <Input 
               value={newUrl} 
               onChange={(e) => setNewUrl(e.target.value)} 
               onKeyPress={e => e.key === 'Enter' && handleAddUrl()}
               placeholder="https://yoursite.com/faq" 
               disabled={isMutating}
+              style={{PointerEvent: 'none',opacity:'0.6'}}
             />
             <Button onClick={handleAddUrl} disabled={!newUrl.trim() || isMutating}>
               {addSourceMutation.isPending && newUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add URL"}
