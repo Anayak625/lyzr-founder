@@ -11,18 +11,98 @@ from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, M
 from .serializers import (
     RegisterSerializer, UserSerializer, AgentSerializer, KnowledgeSourceSerializer,
     TicketListSerializer, TicketDetailSerializer, PublicAgentConfigSerializer,
-    ConversationAnalyticsSerializer, DailyChatVolumeSerializer, TicketNoteSerializer
+    ConversationAnalyticsSerializer, DailyChatVolumeSerializer, TicketNoteSerializer, VerifyOTPSerializer
 )
 from .tasks import create_lyzr_stack_task, index_knowledge_source_task,update_lyzr_agent_task
 from .permissions import IsOwnerOrReadOnly, IsAgentOwner
+from django.core.cache import cache
+import json
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.contrib.auth.hashers import make_password
+from django.conf import settings
+import random
+
 
 logger = logging.getLogger(__name__)
 
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
+class RegisterView(generics.GenericAPIView):
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
 
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        email = validated_data['email']
+        
+        if User.objects.filter(email=email, is_verified=True).exists():
+            return Response({"detail": "A verified user with this email already exists. Please log in."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        otp = str(random.randint(100000, 999999))
+        hashed_password = make_password(validated_data['password'])
+        
+        cache_key = f"otp_verify_{email}"
+        user_data = {
+            "full_name": validated_data.get('full_name', ''),
+            "email": email,
+            "password": hashed_password,
+            "otp": otp
+        }
+        cache.set(cache_key, json.dumps(user_data), timeout=600)
+
+        context = {'otp': otp, 'user': user_data}
+        html_message = render_to_string('emails/otp_verification.html', context)
+        send_mail(
+            subject='Verify your Lyzr account',
+            message=f'Your verification code is: {otp}',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+
+        return Response(
+            {"detail": "Verification code sent to your email. Please check.", "email": email},
+            status=status.HTTP_200_OK
+        )
+
+class VerifyOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = VerifyOTPSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+
+        cache_key = f"otp_verify_{email}"
+        cached_data_str = cache.get(cache_key)
+
+        if not cached_data_str:
+            return Response({"detail": "Invalid or expired OTP. Please sign up again."}, status=status.HTTP_400_BAD_REQUEST)
+
+        cached_data = json.loads(cached_data_str)
+        
+        if cached_data.get('otp') != otp:
+            return Response({"detail": "Incorrect OTP provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.create(
+                email=cached_data['email'],
+                password=cached_data['password'],
+                full_name=cached_data['full_name'],
+                is_active=True,
+                is_verified=True 
+            )
+            cache.delete(cache_key)
+            return Response({"detail": "Account successfully created. You can now log in."}, status=status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            return Response({"detail": f"An error occurred: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
 class MyTokenObtainPairView(TokenObtainPairView):
     pass
 

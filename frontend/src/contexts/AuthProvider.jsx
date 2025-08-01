@@ -43,10 +43,9 @@ export const AuthProvider = ({ children }) => {
     await queryClient.invalidateQueries({ queryKey: ['user'] });
   };
   
-  const signup = async (email, password, fullName) => {
-    await apiRegister({ email, password, full_name: fullName });
-    await login(email, password);
-  };
+    const signup = async (email, password, fullName) => {
+        await apiRegister({ email, password, full_name: fullName });
+    };
 
   const logout = () => {
     localStorage.removeItem('lyzr_access_token');

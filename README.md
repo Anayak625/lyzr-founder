@@ -26,6 +26,43 @@ The platform is built with a robust backend using Django and a modern, responsiv
   [![Azure](https://img.shields.io/badge/Azure-Backend-0078D4?logo=microsoft-azure&logoColor=white)](https://lyzr-ai.azurewebsites.net)
 
 
+## 🚧 TODO / Upcoming Features
+
+These are planned enhancements that are modular and non-blocking to the core app experience:
+
+- [x] ✅ Core Features
+  - [x] Agent creation and configuration
+  - [x] Chat widget embedding with plug-and-play setup
+  - [x] Real-time chat UI with Lyzr agent
+  - [x] Ticket management module
+  - [x] Knowledge base upload and indexing
+  - [x] Chat analytics and dashboard
+  - [x] User authentication (email/password based)
+
+- [x] 🔐 Authentication Enhancements
+  - [x] OTP-based login (email/phone)
+
+- [ ] 👥 Team Collaboration
+  - [ ] Multiple teammates per account
+  - [ ] Role-based access control (Admin, Agent, Viewer)
+
+- [ ] 💳 Billing and Plans
+  - [ ] Stripe integration for paid plans
+  - [ ] Usage-based metering
+  - [ ] Subscription dashboard
+
+- [ ] 📬 Notifications
+  - [ ] Email notifications for new tickets
+  - [ ] Web push notifications
+
+- [ ] 🎯 Agent Optimization
+  - [ ] Agent feedback loop based on ticket outcomes
+  - [ ] Conversation quality metrics
+
+---
+
+**Note:** These features are structured as independent modules and will be rolled out in future iterations without affecting existing functionality.
+
 ## Core Features
 
 - **Self-Serve User Flow**: A complete onboarding process from user registration and login to agent creation.

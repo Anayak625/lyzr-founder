@@ -3,6 +3,7 @@ import apiClient from './apiClient';
 // --- Authentication & User ---
 export const loginUser = (credentials) => apiClient.post('/auth/login/', credentials);
 export const registerUser = (userData) => apiClient.post('/auth/register/', userData);
+export const verifyOTP = (data) => apiClient.post('/auth/verify-otp/', data);
 export const fetchUserDetails = () => apiClient.get('/auth/me/');
 export const updateUserDetails = (data) => apiClient.patch('/auth/me/', data);
 

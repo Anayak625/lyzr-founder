@@ -183,6 +183,16 @@ LOGGING = {
     },
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": config('CHANNEL_LAYER_REDIS_URL'),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
 LYZR_API_KEY = config('LYZR_API_KEY')
 LYZR_AGENT_API_BASE_URL = config('LYZR_AGENT_API_BASE_URL', default='https://agent-prod.studio.lyzr.ai/v3/')
 LYZR_RAG_API_BASE_URL = config('LYZR_RAG_API_BASE_URL', default='https://rag-prod.studio.lyzr.ai/v3/')
@@ -191,3 +201,12 @@ LYZR_LLM_PROVIDER_ID = config('LYZR_LLM_PROVIDER_ID', default='OpenAI')
 LYZR_LLM_CREDENTIAL_ID = config('LYZR_LLM_CREDENTIAL_ID')
 LYZR_EMBEDDING_CREDENTIAL_ID = config('LYZR_EMBEDDING_CREDENTIAL_ID')
 LYZR_VECTOR_DB_CREDENTIAL_ID = config('LYZR_VECTOR_DB_CREDENTIAL_ID')
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config('EMAIL_HOST_USER') 
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD') 
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@lyzr.ai')

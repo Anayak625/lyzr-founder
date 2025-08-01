@@ -3,7 +3,7 @@ from rest_framework_nested import routers
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, MyTokenObtainPairView, UserDetailView,
-    AgentViewSet, KnowledgeSourceViewSet,
+    AgentViewSet, KnowledgeSourceViewSet, VerifyOTPView,
     PublicAgentConfigView, TicketViewSet, DashboardAnalyticsView
 )
 
@@ -16,6 +16,7 @@ agents_router.register(r'knowledge-sources', KnowledgeSourceViewSet, basename='a
 
 urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='auth_register'),
+    path('auth/verify-otp/', VerifyOTPView.as_view(), name='auth_verify_otp'),
     path('auth/login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/me/', UserDetailView.as_view(), name='user-detail'),

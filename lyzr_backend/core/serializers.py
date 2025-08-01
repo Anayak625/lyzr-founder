@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, Message, TicketNote
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.conf import settings
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -7,18 +10,18 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'email', 'full_name', 'onboarding_completed', 'date_joined']
         read_only_fields = ['id', 'date_joined']
 
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, min_length=8)
     class Meta:
         model = User
         fields = ('email', 'password', 'full_name')
-    def create(self, validated_data):
-        return User.objects.create_user(
-            email=validated_data['email'],
-            password=validated_data['password'],
-            full_name=validated_data.get('full_name', '')
-        )
 
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6, required=True)
+    
+    
 class KnowledgeSourceSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
     class Meta:

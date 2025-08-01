@@ -6,7 +6,9 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import MinValueValidator, MaxValueValidator, URLValidator
 from django.core.exceptions import ValidationError
 from lyzr_backend.storages import PrivateAzureStorage
-
+from django.utils import timezone
+from datetime import timedelta
+import random
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -22,8 +24,8 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('is_verified', True) # Superusers are verified by default
         return self.create_user(email, password, **extra_fields)
-
 
 class User(AbstractUser):
     username = None
@@ -32,12 +34,24 @@ class User(AbstractUser):
     full_name = models.CharField(max_length=255, blank=True)
     onboarding_completed = models.BooleanField(default=False)
     
+    is_verified = models.BooleanField(default=False)
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    otp_expiry_at = models.DateTimeField(null=True, blank=True)
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['full_name']
     objects = UserManager()
-    
-    def __str__(self): 
+
+    def __str__(self):
         return self.email
+
+    def generate_otp(self):
+        self.otp = str(random.randint(100000, 999999))
+        self.otp_expiry_at = timezone.now() + timedelta(minutes=10) # OTP is valid for 10 minutes
+        self.save()
+
+    def is_otp_valid(self, otp_code):
+        return self.otp == otp_code and self.otp_expiry_at > timezone.now()
 
 
 class Agent(models.Model):
