@@ -23,6 +23,8 @@ import NotFound from "./pages/NotFound";
 import TeamSettingsPage from "./pages/TeamSettingsPage";
 import BillingPage from "./pages/BillingPage"; 
 
+import ConversationsPage from "./pages/ConversationsPage";
+
 // Landing Page Sections
 import HeroSection from "./components/landing/HeroSection";
 import FeatureSection from "./components/landing/FeatureSection";
@@ -92,6 +94,8 @@ const App = () => (
               <Route path="agent/:agentId/:view" element={<AgentDashboardPage />} />
               <Route path="agent" element={<AgentRedirector />} />
               <Route path="agent/:agentId" element={<Navigate to="dashboard" replace />} />
+
+              <Route path="conversations" element={<ConversationsPage />} />
 
               {/* Other application routes */}
               <Route path="tickets" element={<TicketsListPage />} />

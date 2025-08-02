@@ -4,12 +4,12 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, MyTokenObtainPairView, UserDetailView,
     AgentViewSet, KnowledgeSourceViewSet, VerifyOTPView,
-    PublicAgentConfigView, TicketViewSet, DashboardAnalyticsView
+    PublicAgentConfigView, DashboardAnalyticsView, ConversationViewSet
 )
 
 router = routers.DefaultRouter()
 router.register(r'agents', AgentViewSet, basename='agent')
-router.register(r'tickets', TicketViewSet, basename='ticket')
+router.register(r'conversations', ConversationViewSet, basename='conversation')
 
 agents_router = routers.NestedDefaultRouter(router, r'agents', lookup='agent')
 agents_router.register(r'knowledge-sources', KnowledgeSourceViewSet, basename='agent-knowledge-source')

@@ -53,54 +53,12 @@ export const deleteKnowledgeSource = async (agentId, sourceId) => {
 };
 
 
-// --- Tickets / Conversations ---
-export const fetchTickets = async () => {
-  const response = await apiClient.get('/tickets/');
-  return response.data;
-};
-export const fetchTicketDetails = async (ticketId) => {
-  const response = await apiClient.get(`/tickets/${ticketId}/`);
-  return response.data;
-};
-export const updateTicketStatus = async (ticketId, status) => {
-  const response = await apiClient.post(`/tickets/${ticketId}/update_status/`, { status });
-  return response.data;
-};
-export const addTicketNote = async (ticketId, note) => {
-  const response = await apiClient.post(`/tickets/${ticketId}/add_note/`, { note });
-  return response.data;
-};
-
-
 // --- Dashboard & Public ---
 export const fetchDashboardAnalytics = async () => {
   const response = await apiClient.get('/dashboard/analytics/');
-  
-  return {
-    data: {
-      kpis: {
-        total_conversations: 0,
-        resolved_conversations: 0,
-        active_conversations: 0,
-        flagged_conversations: 0,
-        resolution_rate: 0,
-        avg_messages_per_conversation: 0,
-        positive_feedback_rate: 0
-      },
-      chat_volume_trends: [],
-      recent_tickets: [],
-      ...response.data 
-    }
-  };
-};
-
-export const fetchPublicAgentConfig = async (agentId) => {
-  const response = await apiClient.get(`/public/agent-config/${agentId}/`);
   return response.data;
-};
-
-// --- Feedback ---
-export const submitMessageFeedback = (messageId, feedback) => apiClient.post('/feedback/', { message_id: messageId, feedback });
+}
+export const fetchPublicAgentConfig = (agentId) => apiClient.get(`/public/agent-config/${agentId}/`);
 
 
 // --- Billing ---
@@ -110,15 +68,8 @@ export const fetchPlans = async () => {
 };
 
 export const fetchSubscription = async () => {
-  try {
     const response = await apiClient.get('/billing/subscription/');
     return response.data;
-  } catch (error) {
-    if (error.response && error.response.status === 404) {
-      return null; 
-    }
-    throw error;
-  }
 };
 
 export const createSubscription = async (planId) => {
@@ -127,30 +78,50 @@ export const createSubscription = async (planId) => {
 };
 
 
-// Mocked API Calls for Team Management future implementation
-// --- Team Management ---
-export const fetchTeamMembers = () => {
-  console.warn("API CALL: fetchTeamMembers() is mocked.");
-  return Promise.resolve({
-    data: [
-      { id: '1a2b3c', full_name: 'Jane Doe (Admin)', email: 'jane.doe@example.com', role: 'Owner' },
-      { id: '4d5e6f', full_name: 'John Smith', email: 'john.smith@example.com', role: 'Member' },
-      { id: '7g8h9i', full_name: 'pending@example.com', email: 'pending@example.com', role: 'Pending' },
-    ]
-  });
+// --- Tickets ---
+export const createTicket = async (ticketData) => {
+  const response = await apiClient.post('/tickets/', ticketData);
+  return response.data;
 };
-
-export const inviteTeamMember = (email, role) => {
-  console.warn("API CALL: inviteTeamMember() is mocked.");
-  return apiClient.post('/team/invite/', { email, role }); 
+export const fetchTickets = async () => {
+  const response = await apiClient.get('/tickets/');
+  return response.data;
 };
-
-export const removeTeamMember = (memberId) => {
-  console.warn("API CALL: removeTeamMember() is mocked.");
-  return apiClient.delete(`/team/members/${memberId}/`);
+export const fetchTicketDetails = async (ticketId) => {
+  const response = await apiClient.get(`/tickets/${ticketId}/`);
+  return response.data;
 };
+export const updateTicketStatus = (ticketId, status) => apiClient.post(`/tickets/${ticketId}/update-status/`, { status });
+export const updateTicketPriority = (ticketId, priority) => apiClient.post(`/tickets/${ticketId}/update-priority/`, { priority });
+export const assignTicket = (ticketId, assignmentData) => apiClient.post(`/tickets/${ticketId}/assign/`, assignmentData);
+export const addTicketNote = (ticketId, noteData) => apiClient.post(`/tickets/${ticketId}/add-note/`, noteData);
 
-export const updateMemberRole = (memberId, role) => {
-    console.warn("API CALL: updateMemberRole() is mocked.");
-    return apiClient.patch(`/team/members/${memberId}/`, { role });
+// --- Teams & Invitations ---
+export const fetchMyTeams = async () => {
+    const response = await apiClient.get('/teams/');
+    return response.data;
+};
+export const fetchTeamDetails = async (teamId) => {
+    const response = await apiClient.get(`/teams/${teamId}/`);
+    return response.data;
+};
+export const createTeam = async (teamData) => {
+    const response = await apiClient.post('/teams/', teamData);
+    return response.data;
+};
+export const inviteTeamMember = (teamId, inviteData) => apiClient.post(`/teams/${teamId}/invite/`, inviteData);
+export const removeTeamMember = (teamId, memberId) => apiClient.post(`/teams/${teamId}/remove-member/${memberId}/`);
+export const updateMemberRole = (teamId, memberId, roleData) => apiClient.post(`/teams/${teamId}/update-member-role/${memberId}/`, roleData);
+export const fetchInvitations = async () => {
+    const response = await apiClient.get('/invitations/');
+    return response.data;
+};
+export const acceptInvitation = (invitationId) => apiClient.post(`/invitations/${invitationId}/accept/`);
+export const declineInvitation = (invitationId) => apiClient.post(`/invitations/${invitationId}/decline/`);
+
+
+// --- Conversations ---
+export const fetchConversations = async () => {
+    const response = await apiClient.get('/conversations/');
+    return response.data;
 };

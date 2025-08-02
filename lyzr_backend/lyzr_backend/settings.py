@@ -5,10 +5,11 @@ import dj_database_url
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-insecure-)ci21ajqaw27i*a+k%ihab4*qpnc^-m@k_n!1+gfkj892i78&o'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-)ci21ajqaw27i*a+k%ihab4*qpnc^-m@k_n!1+gfkj892i78&o')
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
-CSRF_TRUSTED_ORIGINS = ['https://lyzr-ai.azurewebsites.net','https://127.0.0.1']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,169.254.132.5').split(',')
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:8080,http://127.0.0.1:8080,https://lyzr-ai.azurewebsites.net,https://127.0.0.1').split(',')
+
 
 INSTALLED_APPS = [
     'daphne',
@@ -26,6 +27,8 @@ INSTALLED_APPS = [
     'storages',
     'core',
     'billing',
+    'teams',
+    'tickets',
 ]
 
 MIDDLEWARE = [
@@ -197,6 +200,7 @@ CACHES = {
 LYZR_API_KEY = config('LYZR_API_KEY')
 LYZR_AGENT_API_BASE_URL = config('LYZR_AGENT_API_BASE_URL', default='https://agent-prod.studio.lyzr.ai/v3/')
 LYZR_RAG_API_BASE_URL = config('LYZR_RAG_API_BASE_URL', default='https://rag-prod.studio.lyzr.ai/v3/')
+LYZR_SUMMARIZER_AGENT_ID = config('LYZR_SUMMARIZER_AGENT_ID')
 
 LYZR_LLM_PROVIDER_ID = config('LYZR_LLM_PROVIDER_ID', default='OpenAI')
 LYZR_LLM_CREDENTIAL_ID = config('LYZR_LLM_CREDENTIAL_ID')
@@ -212,6 +216,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = config('EMAIL_HOST_USER') 
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD') 
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@lyzr.ai')

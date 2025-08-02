@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, Message, TicketNote
+from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, Message
 
 class UserAdmin(admin.ModelAdmin):
     list_display = ('email', 'full_name', 'is_staff', 'date_joined')
@@ -25,18 +25,15 @@ class MessageInline(admin.TabularInline):
     readonly_fields = ('id', 'sender_type', 'content', 'feedback', 'created_at')
 
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'agent', 'end_user_id', 'status', 'updated_at')
-    list_filter = ('status', 'agent')
+    list_display = ('id', 'agent', 'end_user_id', 'updated_at')
+    list_filter = ('agent',)
     search_fields = ('end_user_id', 'agent__name')
     inlines = [MessageInline]
+    readonly_fields = ('created_at', 'updated_at')
 
-class TicketNoteAdmin(admin.ModelAdmin):
-    list_display = ('conversation', 'user', 'created_at')
-    search_fields = ('user__email', 'conversation__id')
 
 admin.site.register(User, UserAdmin)
 admin.site.register(Agent, AgentAdmin)
 admin.site.register(KnowledgeBase, KnowledgeBaseAdmin)
 admin.site.register(KnowledgeSource, KnowledgeSourceAdmin)
 admin.site.register(Conversation, ConversationAdmin)
-admin.site.register(TicketNote, TicketNoteAdmin)

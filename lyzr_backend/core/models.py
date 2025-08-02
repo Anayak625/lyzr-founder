@@ -1,5 +1,3 @@
-# Enhanced Django models with improved knowledge source handling
-
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
@@ -70,7 +68,6 @@ class Agent(models.Model):
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     model = models.CharField(max_length=50, choices=LyzrModel.choices, default=LyzrModel.GPT_4O_MINI)
-    # --- NEW & UPDATED FIELDS ---
     description = models.TextField(
         blank=True, 
         help_text="A brief description of what this agent does."
@@ -99,7 +96,6 @@ class Agent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # New fields for better agent management
     max_tokens = models.IntegerField(default=1500, validators=[MinValueValidator(1), MaxValueValidator(8000)])
     timeout_seconds = models.IntegerField(default=30, validators=[MinValueValidator(5), MaxValueValidator(300)])
     
@@ -110,10 +106,6 @@ class Agent(models.Model):
         return f"Agent '{self.name}' for {self.user.email}"
     
     def get_system_prompt(self):
-        """
-        Dynamically generates the complete system prompt for the AI model
-        by combining the structured fields.
-        """
         prompt_parts = []
         
         if self.agent_role:
@@ -128,14 +120,12 @@ class Agent(models.Model):
         if self.examples:
             prompt_parts.append(f"EXAMPLES:\n{self.examples}")
 
-        # Fallback to a default prompt if all fields are empty
         if not prompt_parts:
             return "You are a helpful assistant."
             
         return "\n\n".join(prompt_parts)
     
     def clean(self):
-        """Validate agent configuration"""
         super().clean()
         if self.temperature < 0 or self.temperature > 2:
             raise ValidationError("Temperature must be between 0 and 2")
@@ -151,7 +141,6 @@ class KnowledgeBase(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # Enhanced fields
     description = models.TextField(blank=True, help_text="Description of the knowledge base content")
     total_documents = models.IntegerField(default=0, help_text="Total number of indexed documents")
     last_indexed_at = models.DateTimeField(null=True, blank=True)
@@ -197,15 +186,12 @@ class KnowledgeSource(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # Enhanced fields for better tracking
     file_size = models.BigIntegerField(null=True, blank=True, help_text="File size in bytes")
     processing_time = models.DurationField(null=True, blank=True, help_text="Time taken to process")
     error_message = models.TextField(blank=True, help_text="Error details if indexing failed")
     retry_count = models.IntegerField(default=0, help_text="Number of retry attempts")
     indexed_at = models.DateTimeField(null=True, blank=True)
     document_count = models.IntegerField(default=0, help_text="Number of documents extracted")
-    
-    # Metadata for different source types
     metadata = models.JSONField(default=dict, help_text="Additional metadata specific to source type")
     
     class Meta:
@@ -215,13 +201,11 @@ class KnowledgeSource(models.Model):
         return f"{self.get_type_display()}: {self.title}"
     
     def clean(self):
-        """Validate knowledge source configuration"""
         super().clean()
         
         if self.type == self.SourceType.URL:
             if not self.content:
                 raise ValidationError("URL content is required for URL sources")
-            # Validate URL format
             validator = URLValidator()
             try:
                 validator(self.content)
@@ -231,7 +215,6 @@ class KnowledgeSource(models.Model):
         elif self.type == self.SourceType.FILE:
             if not self.file:
                 raise ValidationError("File is required for FILE sources")
-            # Auto-detect file type from extension
             if self.file and not self.file_type:
                 file_extension = self.file.name.split('.')[-1].lower()
                 if file_extension in dict(self.FileType.choices):
@@ -242,14 +225,12 @@ class KnowledgeSource(models.Model):
                 raise ValidationError("Text content is required for TEXT sources")
     
     def save(self, *args, **kwargs):
-        """Override save to handle file metadata"""
         if self.file and not self.file_size:
             try:
                 self.file_size = self.file.size
             except (AttributeError, OSError):
                 pass
                 
-        # Auto-set file type if not provided
         if self.type == self.SourceType.FILE and self.file and not self.file_type:
             file_extension = self.file.name.split('.')[-1].lower()
             if file_extension in dict(self.FileType.choices):
@@ -275,31 +256,15 @@ class KnowledgeSource(models.Model):
 
 
 class Conversation(models.Model):
-    class Status(models.TextChoices):
-        ACTIVE = 'ACTIVE', 'Active'
-        RESOLVED = 'RESOLVED', 'Resolved'
-        FLAGGED = 'FLAGGED', 'Flagged for Review'
-        ARCHIVED = 'ARCHIVED', 'Archived'
-        
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name='conversations')
     end_user_id = models.CharField(max_length=255, help_text="Session or user identifier")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     summary = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # Enhanced fields
     user_agent = models.TextField(blank=True, help_text="Browser user agent")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    referrer = models.URLField(blank=True, help_text="Referrer URL")
-    session_duration = models.DurationField(null=True, blank=True)
-    message_count = models.IntegerField(default=0)
-    satisfaction_rating = models.IntegerField(
-        null=True, blank=True,
-        validators=[MinValueValidator(1), MaxValueValidator(5)],
-        help_text="User satisfaction rating (1-5)"
-    )
     
     class Meta:
         unique_together = ('agent', 'end_user_id')
@@ -307,11 +272,6 @@ class Conversation(models.Model):
         
     def __str__(self): 
         return f"Conversation {self.id} with {self.end_user_id}"
-    
-    def update_message_count(self):
-        """Update cached message count"""
-        self.message_count = self.messages.count()
-        self.save(update_fields=['message_count'])
 
 
 class Message(models.Model):
@@ -331,63 +291,13 @@ class Message(models.Model):
     feedback = models.CharField(max_length=10, choices=Feedback.choices, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Enhanced fields
-    response_time = models.DurationField(null=True, blank=True, help_text="Time taken to generate response")
-    token_count = models.IntegerField(null=True, blank=True, help_text="Number of tokens in message")
-    model_used = models.CharField(max_length=100, blank=True, help_text="Model used for AI responses")
-    confidence_score = models.FloatField(
-        null=True, blank=True,
-        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
-        help_text="AI confidence score"
-    )
-    
-    # Metadata for additional context
     metadata = models.JSONField(default=dict, help_text="Additional message metadata")
     
     class Meta:
         ordering = ['created_at']
-        indexes = [
-            models.Index(fields=['conversation', 'created_at']),
-            models.Index(fields=['sender_type', 'created_at']),
-        ]
         
     def __str__(self): 
         return f"Message from {self.sender_type} at {self.created_at}"
-    
-    def save(self, *args, **kwargs):
-        """Override save to update conversation message count"""
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-        
-        if is_new:
-            # Update conversation message count
-            self.conversation.update_message_count()
-    
-    def get_word_count(self):
-        """Get word count of message content"""
-        return len(self.content.split())
-
-
-class TicketNote(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='notes')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ticket_notes')
-    note = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    # Enhanced fields
-    is_internal = models.BooleanField(default=True, help_text="Internal note not visible to end user")
-    priority = models.CharField(
-        max_length=10,
-        choices=[('LOW', 'Low'), ('MEDIUM', 'Medium'), ('HIGH', 'High'), ('URGENT', 'Urgent')],
-        default='MEDIUM'
-    )
-    
-    class Meta:
-        ordering = ['-created_at']
-        
-    def __str__(self): 
-        return f"Note by {self.user.email} on conversation {self.conversation.id}"
 
 
 class APIUsage(models.Model):
@@ -395,16 +305,13 @@ class APIUsage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_usage')
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name='api_usage', null=True, blank=True)
     
-    # Usage metrics
     endpoint = models.CharField(max_length=100, help_text="API endpoint called")
     request_count = models.IntegerField(default=1)
     tokens_used = models.IntegerField(default=0)
     response_time = models.DurationField(null=True, blank=True)
     
-    # Cost tracking
     estimated_cost = models.DecimalField(max_digits=10, decimal_places=6, default=0.0)
     
-    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     date = models.DateField(auto_now_add=True)
     
@@ -418,8 +325,6 @@ class APIUsage(models.Model):
     def __str__(self):
         return f"API Usage for {self.user.email} - {self.endpoint}"
 
-
-# New model for system health monitoring
 class SystemHealth(models.Model):
     class ComponentType(models.TextChoices):
         LYZR_API = 'LYZR_API', 'Lyzr API'

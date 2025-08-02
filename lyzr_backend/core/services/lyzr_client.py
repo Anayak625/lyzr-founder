@@ -5,11 +5,11 @@ from typing import Dict, Any, Optional, List
 from django.conf import settings
 import json
 from core.models import Agent
+import uuid 
 
 logger = logging.getLogger(__name__)
 
 class LyzrAPIError(Exception):
-    """Custom exception for Lyzr API errors with detailed information."""
     def __init__(self, message: str, status_code: Optional[int] = None, response_data: Optional[Dict] = None):
         self.message = message
         self.status_code = status_code
@@ -68,12 +68,7 @@ class LyzrClient:
                     continue
                 raise LyzrAPIError(f"Network error after retries: {e}")
 
-    ### NEW HELPER METHOD ###
     def _build_agent_payload(self, agent: Agent) -> Dict[str, Any]:
-        """
-        Builds the complete agent payload expected by the Lyzr API,
-        using individual fields from our Agent model.
-        """
         provider_map = {
             'gpt': 'OpenAI',
             'gemini': 'Google',
@@ -81,7 +76,6 @@ class LyzrClient:
         }
         provider = provider_map.get(agent.model.split('-')[0], 'OpenAI')
 
-        # This structure now matches the desired payload
         payload = {
             "name": agent.name,
             "description": agent.description or f"AI Agent: {agent.name}",
@@ -89,18 +83,17 @@ class LyzrClient:
             "agent_goal": agent.agent_goal,
             "agent_instructions": agent.agent_instructions,
             "examples": agent.examples,
-            "tool": "",  # Static field from your desired payload
-            "tool_usage_description": "{}",  # Static field from your desired payload
+            "tool": "",
+            "tool_usage_description": "{}",
             "provider_id": provider,
             "model": agent.model,
             "temperature": str(agent.temperature),
             "top_p": str(agent.top_p),
             "llm_credential_id": settings.LYZR_LLM_CREDENTIAL_ID,
-            "features": [], # Features will be added separately for updates
-            "managed_agents": [], # Static field from your desired payload
+            "features": [],
+            "managed_agents": [],
             "response_format": {"type": "text"}
         }
-        # The 'system_prompt' field is intentionally omitted as per your requirement.
         return payload
 
     def create_rag_config(self, collection_name: str, model: str) -> Dict[str, Any]:
@@ -114,12 +107,8 @@ class LyzrClient:
         }
         return self._make_request(self.rag_base_url, 'POST', 'v3/rag/', json=payload)
     
-    ### MODIFIED to use the new payload builder ###
     def create_agent(self, agent: Agent) -> Dict[str, Any]:
-        """Creates an agent using the structured payload."""
         payload = self._build_agent_payload(agent)
-        # Note: Initial creation might not need features. If it does, they can be added here.
-        # For now, features are added during the update/linking step.
         payload["features"] = [
              {"type": "MEMORY", "config": {"max_messages_context_count": 10}, "priority": 1}
         ]
@@ -130,29 +119,18 @@ class LyzrClient:
     def get_agent(self, lyzr_agent_id: str) -> Dict[str, Any]:
         return self._make_request(self.agent_base_url, 'GET', f"v3/agents/{lyzr_agent_id}")
 
-    ### MODIFIED to use the new payload builder ###
     def update_agent(self, lyzr_agent_id: str, agent: Agent, features: List) -> Dict[str, Any]:
-        """
-        Updates an existing agent on Lyzr using the correct structured payload.
-        """
         endpoint = f"v3/agents/{lyzr_agent_id}"
-        
-        # Build the base payload from our model
         payload = self._build_agent_payload(agent)
-        
-        # Add the existing/updated features (like Knowledge Base and Memory)
         payload["features"] = features
         
         logger.info(f"Updating Lyzr agent {lyzr_agent_id} with new structured data.")
         return self._make_request(self.agent_base_url, 'PUT', endpoint, json=payload)
     
     def update_agent_with_rag(self, lyzr_agent_id: str, rag_id: str, collection: str, agent_model: Agent) -> Dict[str, Any]:
-        """Links RAG by performing a full agent update, preserving all other fields."""
         logger.info(f"Getting existing agent config for {lyzr_agent_id}")
-        # Build the complete payload from our local agent model
         payload = self._build_agent_payload(agent_model)
 
-        # Define the features, including the new Knowledge Base
         features_with_priority = [
             {"type": "KNOWLEDGE_BASE", "config": {"lyzr_rag": {"base_url": "https://rag-prod.studio.lyzr.ai","rag_id": rag_id,"rag_name": collection, "params": {"top_k": 5,"retrieval_type": "basic", "score_threshold": 0.4}}}, "priority": 0},
             {"type": "MEMORY", "config": {"max_messages_context_count": 10}, "priority": 1}
@@ -163,9 +141,7 @@ class LyzrClient:
         logger.info(f"Updating agent {lyzr_agent_id} with complete payload including RAG.")
         return self._make_request(self.agent_base_url, 'PUT', f"v3/agents/{lyzr_agent_id}", json=payload)
         
-    # ... (the rest of the file: index_file, index_url, etc. remains the same) ...
     def index_file(self, rag_id: str, file_obj, file_name: str) -> Dict[str, Any]:
-        """Index file with support for multiple file types."""
         file_extension = file_name.lower().split('.')[-1]
         
         file_config = {
@@ -234,9 +210,27 @@ class LyzrClient:
         return self._make_request(self.agent_base_url, 'POST', endpoint, json=payload)
 
     def summarize_text(self, text_to_summarize: str) -> Dict[str, Any]:
-        endpoint = "v3/tools/summarize/"
-        payload = {"text": text_to_summarize}
-        return self._make_request(self.agent_base_url, 'POST', endpoint, json=payload)
+        """
+        Summarizes text by sending it as a message to the dedicated Lyzr Summarizer Agent.
+        """
+        summarizer_agent_id = settings.LYZR_SUMMARIZER_AGENT_ID
+        if not summarizer_agent_id:
+            logger.error("LYZR_SUMMARIZER_AGENT_ID is not configured in settings.")
+            return {"summary": None, "error": "Summarizer agent is not configured."}
+
+        try:
+            response = self.get_chat_response(
+                agent_id=summarizer_agent_id,
+                session_id=str(uuid.uuid4()),
+                message=text_to_summarize,
+                user_email="system-summarizer" 
+            )
+            summary_text = response.get('response')
+            return {"summary": summary_text}
+        except LyzrAPIError as e:
+            logger.error(f"API call to summarizer agent failed: {e}")
+            return {"summary": None, "error": str(e)}
+
 
     def test_connection(self) -> Dict[str, Any]:
         try:

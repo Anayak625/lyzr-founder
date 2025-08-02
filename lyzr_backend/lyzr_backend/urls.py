@@ -7,11 +7,13 @@ from django.http import JsonResponse
 health_check_view = lambda r: JsonResponse({"status": "ok"})
 
 urlpatterns = [
-    path('', health_check_view), 
-    path('health/', health_check_view),  
+    path('', health_check_view),
+    path('health/', health_check_view),
     path('admin/', admin.site.urls),
     path('api/v1/', include('core.urls')),
     path('api/v1/billing/', include('billing.urls')),
+    path('api/v1/', include('teams.urls')),
+    path('api/v1/', include('tickets.urls')),
 ]
 
 if settings.DEBUG:

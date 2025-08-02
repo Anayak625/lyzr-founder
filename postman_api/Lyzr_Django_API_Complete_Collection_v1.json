@@ -1,0 +1,934 @@
+{
+    "info": {
+        "name": "Lyzr Django Backend API - Complete Collection (v2)",
+        "description": "Complete Postman collection for Lyzr Django backend with authentication, agents, knowledge sources, tickets, team management, billing, and dashboard analytics. This collection includes proper JWT authentication, environment variables, and automated token management.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_postman_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{access_token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Auto-set base URL if not defined",
+                    "if (!pm.environment.get('base_url')) {",
+                    "    pm.environment.set('base_url', 'http://127.0.0.1:8000/api/v1');",
+                    "}",
+                    "",
+                    "// Check if access token is expired (basic check)",
+                    "const accessToken = pm.environment.get('access_token');",
+                    "if (accessToken) {",
+                    "    try {",
+                    "        const payload = JSON.parse(atob(accessToken.split('.')[1]));",
+                    "        const exp = payload.exp * 1000;",
+                    "        const now = Date.now();",
+                    "        if (now >= exp) {",
+                    "            console.log('⚠️ Access token expired, please use the \"Refresh Access Token\" request.');",
+                    "        }",
+                    "    } catch (e) {",
+                    "        // Fails if token is not a valid JWT, which is fine.",
+                    "        console.log('Token format validation skipped.');",
+                    "    }",
+                    "}"
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Global test script for error handling",
+                    "if (pm.response.code >= 400 && pm.response.code < 500) {",
+                    "    console.error(`❌ Client Error: ${pm.response.code} ${pm.response.status}`);",
+                    "    try {",
+                    "        console.error('Response Body:', pm.response.json());",
+                    "    } catch (e) {",
+                    "        console.error('Response Text:', pm.response.text());",
+                    "    }",
+                    "} else if (pm.response.code >= 500) {",
+                    "    console.error(`❌ Server Error: ${pm.response.code} ${pm.response.status}`);",
+                    "} else if (pm.response.code >= 200 && pm.response.code < 300) {",
+                    "    console.log(`✅ Success: ${pm.response.code} ${pm.response.status}`);",
+                    "}"
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:8000/api/v1",
+            "type": "string",
+            "description": "Base API URL - change this to your server URL. Do not include a trailing slash."
+        }
+    ],
+    "item": [
+        {
+            "name": "🔑 Authentication",
+            "description": "User authentication endpoints: register, verify OTP, login, refresh token, and user profile.",
+            "item": [
+                {
+                    "name": "1. Register User (Send OTP)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"LyzrTest_12345\",\n  \"full_name\": \"Test User\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/register/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "register",
+                                ""
+                            ]
+                        },
+                        "description": "Register a new user account. This will send an OTP to the specified email."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2. Verify OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"testuser@example.com\",\n    \"otp\": \"123456\" \n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/verify-otp/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "verify-otp",
+                                ""
+                            ]
+                        },
+                        "description": "Verify the OTP sent to the user's email to complete the registration process. **Remember to replace the OTP with the one you received.**"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3. Login User",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "d0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a",
+                                "exec": [
+                                    "// Automatically set tokens from login response",
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    if (responseJson.access && responseJson.refresh) {",
+                                    "        pm.environment.set('access_token', responseJson.access);",
+                                    "        pm.environment.set('refresh_token', responseJson.refresh);",
+                                    "        console.log('✅ Tokens saved successfully to environment.');",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"LyzrTest_12345\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/login/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "login",
+                                ""
+                            ]
+                        },
+                        "description": "Login user and get JWT tokens. These are automatically saved to the environment."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "4. Refresh Access Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "a9b8c7d6-e5f4-3a2b-1c0d-9e8f7a6b5c4d",
+                                "exec": [
+                                    "// Automatically update access token",
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    if (responseJson.access) {",
+                                    "        pm.environment.set('access_token', responseJson.access);",
+                                    "        console.log('✅ Access token refreshed and saved.');",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/refresh/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "refresh",
+                                ""
+                            ]
+                        },
+                        "description": "Refresh access token using the refresh token obtained during login."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get User Profile",
+                    "protocolProfileBehavior": {
+                        "disableBodyPruning": true
+                    },
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "body": {},
+                        "url": {
+                            "raw": "{{base_url}}/auth/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "me",
+                                ""
+                            ]
+                        },
+                        "description": "Get the profile information of the currently authenticated user."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update User Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"full_name\": \"Test User Updated\",\n  \"onboarding_completed\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "me",
+                                ""
+                            ]
+                        },
+                        "description": "Update the profile information of the currently authenticated user."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "🤖 Agents Management",
+            "description": "CRUD operations for AI agents.",
+            "item": [
+                {
+                    "name": "Create New Agent",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "f1e2d3c4-b5a6-9876-fedc-ba9876543210",
+                                "exec": [
+                                    "// Save created agent ID",
+                                    "if (pm.response.code === 201) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    pm.environment.set('agent_id', responseJson.id);",
+                                    "    console.log('✅ New agent created with ID:', responseJson.id);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Customer Support Bot\",\n  \"description\": \"A friendly bot to help with customer queries.\",\n  \"agent_role\": \"You are a helpful customer support assistant.\",\n  \"agent_goal\": \"Your goal is to answer user questions accurately based on the provided knowledge base.\",\n  \"agent_instructions\": \"1. Always be polite.\\n2. If you don't know the answer, say so.\\n3. Use information from the knowledge base only.\",\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.2,\n  \"widget_settings\": {\n    \"theme\": \"blue\",\n    \"greeting\": \"Hello! How can I assist you today?\"\n  }\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/agents/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                ""
+                            ]
+                        },
+                        "description": "Create a new AI agent with a detailed configuration. The ID is saved automatically."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get All Agents",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "c5d6e7f8-a9b0-1234-5678-fedcba987654",
+                                "exec": [
+                                    "// Save first agent ID for subsequent requests",
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    if (responseJson.results && responseJson.results.length > 0) {",
+                                    "        pm.environment.set('agent_id', responseJson.results[0].id);",
+                                    "        console.log('✅ First agent ID saved:', responseJson.results[0].id);",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/agents/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                ""
+                            ]
+                        },
+                        "description": "Retrieve all agents for the authenticated user. Automatically saves the ID of the first agent."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Specific Agent",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Get details of a specific agent by ID."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Agent",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Updated Support Bot\",\n  \"temperature\": 0.3\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Update an existing agent's configuration."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Agent",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Delete an agent. Use with caution."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "📚 Knowledge Sources",
+            "description": "Manage knowledge sources (files, URLs, text) for agent training.",
+            "item": [
+                {
+                    "name": "Get Agent Knowledge Sources",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "b1a2c3d4-e5f6-7890-abcd-ef1234567890",
+                                "exec": [
+                                    "// Save first knowledge source ID",
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    if (responseJson.results && responseJson.results.length > 0) {",
+                                    "        pm.environment.set('knowledge_source_id', responseJson.results[0].id);",
+                                    "        console.log('✅ First knowledge source ID saved:', responseJson.results[0].id);",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                "knowledge-sources",
+                                ""
+                            ]
+                        },
+                        "description": "Get all knowledge sources for a specific agent."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Upload File (PDF, TXT, etc.)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "type",
+                                    "value": "FILE",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "title",
+                                    "value": "Company Handbook 2024",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": []
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                "knowledge-sources",
+                                ""
+                            ]
+                        },
+                        "description": "Upload a file (e.g., PDF) as a knowledge source. You need to select a file from your local machine in the 'Body' tab."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Add URL Source",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"type\": \"URL\",\n  \"title\": \"Lyzr AI Blog\",\n  \"content\": \"https://www.lyzr.ai/blog/\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                "knowledge-sources",
+                                ""
+                            ]
+                        },
+                        "description": "Add a website URL as a knowledge source."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Knowledge Source",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/{{knowledge_source_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "{{agent_id}}",
+                                "knowledge-sources",
+                                "{{knowledge_source_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Delete a knowledge source."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "🎟️ Tickets & Helpdesk",
+            "description": "Manage customer support tickets, which are created from conversations.",
+            "item": [
+                {
+                    "name": "Create Ticket from Conversation",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "e1f2d3c4-b5a6-7890-abcd-ef1234567890",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    pm.environment.set('ticket_id', responseJson.id);",
+                                    "    console.log('✅ New Ticket created with ID:', responseJson.id);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"User is having trouble with billing\",\n    \"priority\": \"HIGH\",\n    \"conversation_id\": \"{{conversation_id}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/tickets/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "tickets",
+                                ""
+                            ]
+                        },
+                        "description": "Create a new ticket from an existing conversation. **You must have a `conversation_id` from a chat session for this to work.** The ticket ID is saved automatically."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get All Tickets",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "d1c2b3a4-e5f6-7890-abcd-ef1234567890",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    if (responseJson.results && responseJson.results.length > 0) {",
+                                    "        pm.environment.set('ticket_id', responseJson.results[0].id);",
+                                    "        console.log('✅ First Ticket ID saved:', responseJson.results[0].id);",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/tickets/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "tickets",
+                                ""
+                            ]
+                        },
+                        "description": "Get all tickets assigned to the user or their teams."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Ticket Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/tickets/{{ticket_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "tickets",
+                                "{{ticket_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Get detailed information about a specific ticket, including the original conversation and internal notes."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Ticket Status",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"status\": \"SOLVED\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/tickets/{{ticket_id}}/update-status/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "tickets",
+                                "{{ticket_id}}",
+                                "update-status",
+                                ""
+                            ]
+                        },
+                        "description": "Update ticket status (NEW, OPEN, PENDING, ON_HOLD, SOLVED, CLOSED)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Assign Ticket",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"team_id\": \"{{team_id}}\",\n    \"user_id\": null\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/tickets/{{ticket_id}}/assign/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "tickets",
+                                "{{ticket_id}}",
+                                "assign",
+                                ""
+                            ]
+                        },
+                        "description": "Assign a ticket to a specific team or user. You need a `team_id` or `user_id`."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Add Note to Ticket",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"note\": \"Followed up with the customer via email. They confirmed the issue is resolved.\",\n  \"is_internal\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/tickets/{{ticket_id}}/add-note/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "tickets",
+                                "{{ticket_id}}",
+                                "add-note",
+                                ""
+                            ]
+                        },
+                        "description": "Add an internal note to a ticket for collaboration."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "👥 Team Management",
+            "description": "Manage teams, members, and invitations.",
+            "item": [
+                {
+                    "name": "Get My Teams",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "id": "a2b3c4d5-e6f7-8901-2345-67890abcde",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    if (responseJson.results && responseJson.results.length > 0) {",
+                                    "        pm.environment.set('team_id', responseJson.results[0].id);",
+                                    "        console.log('✅ First Team ID saved:', responseJson.results[0].id);",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/teams/teams/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "teams",
+                                "teams",
+                                ""
+                            ]
+                        },
+                        "description": "Get all teams owned by the authenticated user."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Invite Member to Team",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"new_member@example.com\",\n    \"role\": \"MEMBER\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/teams/teams/{{team_id}}/invite/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "teams",
+                                "teams",
+                                "{{team_id}}",
+                                "invite",
+                                ""
+                            ]
+                        },
+                        "description": "Send an invitation for a new user to join a specific team."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "💰 Billing & Subscriptions",
+            "description": "Manage subscription plans and payments.",
+            "item": [
+                {
+                    "name": "Get Available Plans",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/billing/plans/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "billing",
+                                "plans",
+                                ""
+                            ]
+                        },
+                        "description": "View all active subscription plans available for purchase."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get My Subscription",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/billing/subscription/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "billing",
+                                "subscription",
+                                ""
+                            ]
+                        },
+                        "description": "Get details about the current user's active subscription."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "📊 Dashboard & Analytics",
+            "description": "Analytics data for monitoring performance.",
+            "item": [
+                {
+                    "name": "Get Dashboard Analytics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/dashboard/analytics/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "dashboard",
+                                "analytics",
+                                ""
+                            ]
+                        },
+                        "description": "Get comprehensive dashboard analytics including KPIs, chat volume trends, and recent tickets."
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}

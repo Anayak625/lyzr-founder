@@ -1,3 +1,5 @@
+# billing/models.py
+
 import uuid
 from django.db import models
 from django.conf import settings
@@ -30,8 +32,10 @@ class Subscription(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscription')
     plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, related_name='subscriptions')
     status = models.CharField(max_length=20, choices=SubscriptionStatus.choices, default=SubscriptionStatus.INACTIVE)
-    razorpay_subscription_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    
     razorpay_payment_id = models.CharField(max_length=255, blank=True, null=True)
+    razorpay_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    
     start_date = models.DateTimeField(auto_now_add=True)
     end_date = models.DateTimeField(null=True, blank=True, help_text="Date when the subscription is set to expire")
 

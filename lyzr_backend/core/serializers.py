@@ -1,14 +1,6 @@
 from rest_framework import serializers
-from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, Message, TicketNote
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.conf import settings
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'full_name', 'onboarding_completed', 'date_joined']
-        read_only_fields = ['id', 'date_joined']
+from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, Message
+from .users_serializers import UserSerializer # CORRECTED IMPORT
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -72,38 +64,18 @@ class MessageSerializer(serializers.ModelSerializer):
         model = Message
         fields = ['id', 'sender_type', 'content', 'feedback', 'created_at']
 
-class TicketNoteSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    class Meta:
-        model = TicketNote
-        fields = ['id', 'user', 'note', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at']
-
-class TicketListSerializer(serializers.ModelSerializer):
-    customer = serializers.CharField(source='end_user_id')
-    subject = serializers.SerializerMethodField()
+class ConversationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Conversation
-        fields = ['id', 'customer', 'subject', 'status', 'updated_at', 'summary']
-    def get_subject(self, obj):
-        first_user_message = obj.messages.filter(sender_type=Message.Sender.USER).first()
-        return (first_user_message.content[:75] + '...') if first_user_message and len(first_user_message.content) > 75 else (first_user_message.content if first_user_message else "No subject")
+        fields = ['id', 'end_user_id', 'summary', 'created_at', 'updated_at']
 
-class TicketDetailSerializer(TicketListSerializer):
-    messages = MessageSerializer(many=True, read_only=True)
-    notes = TicketNoteSerializer(many=True, read_only=True)
-    agent = AgentSerializer(read_only=True)
-    class Meta(TicketListSerializer.Meta):
-        fields = TicketListSerializer.Meta.fields + ['messages', 'notes', 'agent']
 
 class ConversationAnalyticsSerializer(serializers.Serializer):
     total_conversations = serializers.IntegerField()
-    resolved_conversations = serializers.IntegerField()
-    active_conversations = serializers.IntegerField()
-    flagged_conversations = serializers.IntegerField()
-    resolution_rate = serializers.FloatField()
     avg_messages_per_conversation = serializers.FloatField()
     positive_feedback_rate = serializers.FloatField()
+    open_tickets = serializers.IntegerField()
+    tickets_solved_last_30_days = serializers.IntegerField()
 
 class DailyChatVolumeSerializer(serializers.Serializer):
     date = serializers.DateField()

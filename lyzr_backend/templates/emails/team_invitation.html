@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>You're Invited!</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+    <h2>You're Invited to Join a Team on Lyzr</h2>
+    <p>Hello,</p>
+    <p>
+        <strong>{{ inviter_name }}</strong> has invited you to join the team: <strong>{{ team_name }}</strong>.
+    </p>
+    <p>
+        To accept this invitation, please log in to your Lyzr account (or sign up if you don't have one) and navigate to the Invitations page.
+    </p>
+    <p>
+        <a href="{{ invitation_link }}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px;">
+            Go to My Invitations
+        </a>
+    </p>
+    <p>
+        If you were not expecting this invitation, you can safely ignore this email.
+    </p>
+    <p>
+        Thanks,<br/>
+        The Lyzr Team
+    </p>
+</body>
+</html>

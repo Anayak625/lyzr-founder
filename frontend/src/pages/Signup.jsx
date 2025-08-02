@@ -10,7 +10,7 @@ import { Eye, EyeOff, Mail, Lock, User, Sparkles, Loader2, KeyRound } from 'luci
 import { verifyOTP } from '@/api';
 
 const Signup = () => {
-  const [step, setStep] = useState('register');
+  const [step, setStep] = useState('register'); // 'register' or 'verify'
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +28,7 @@ const Signup = () => {
     try {
       await signup(email, password, fullName);
       toast({
-        title: 'Account created!',
+        title: 'Verification code sent!',
         description: "We've sent an OTP to your email. Please check and verify.",
       });
       setStep('verify');
@@ -52,14 +52,15 @@ const Signup = () => {
       await verifyOTP({ email, otp });
       toast({
         title: 'Email Verified!',
-        description: 'Logging you in...',
+        description: 'Your account is ready. Logging you in...',
       });
+      // After successful verification, log the user in to get tokens
       await login(email, password);
-      navigate('/app');
+      navigate('/app'); // Redirect to the app's main page
     } catch (error) {
       toast({
         title: 'Verification Failed',
-        description: error.response?.data?.error || 'Invalid or expired OTP.',
+        description: error.response?.data?.detail || 'Invalid or expired OTP.',
         variant: 'destructive',
       });
     } finally {
@@ -77,10 +78,10 @@ const Signup = () => {
             </div>
           </Link>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Create your account
+            {step === 'register' ? 'Create your account' : 'Verify your email'}
           </h1>
           <p className="text-muted-foreground">
-            Start building intelligent agents in minutes.
+            {step === 'register' ? 'Start building intelligent agents in minutes.' : `Enter the 6-digit code sent to ${email}`}
           </p>
         </div>
 
@@ -121,12 +122,6 @@ const Signup = () => {
               </form>
             ) : (
               <form onSubmit={handleVerifySubmit} className="space-y-5">
-                <div className="space-y-2 text-center">
-                  <h2 className="text-xl font-semibold">Verify Your Email</h2>
-                  <p className="text-muted-foreground text-sm">
-                    Enter the 6-digit OTP sent to <strong>{email}</strong>.
-                  </p>
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="otp">OTP Code</Label>
                   <div className="relative">

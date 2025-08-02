@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import apiClient from '@/api/apiClient';
-import { loginUser as apiLogin, registerUser as apiRegister, updateUserDetails } from '@/api';
+import { loginUser, registerUser, updateUserDetails, fetchUserDetails } from '@/api';
 
 const AuthContext = createContext(undefined);
 
@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }) => {
   });
 
   const login = async (email, password) => {
-    const { data } = await apiLogin({ email, password });
+    const { data } = await loginUser({ email, password });
     localStorage.setItem('lyzr_access_token', data.access);
     localStorage.setItem('lyzr_refresh_token', data.refresh);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${data.access}`;
@@ -43,27 +43,30 @@ export const AuthProvider = ({ children }) => {
     await queryClient.invalidateQueries({ queryKey: ['user'] });
   };
   
-    const signup = async (email, password, fullName) => {
-        await apiRegister({ email, password, full_name: fullName });
-    };
+  const signup = async (email, password, fullName) => {
+    // This function now only handles the first step: sending the OTP
+    await registerUser({ email, password, full_name: fullName });
+  };
 
   const logout = () => {
     localStorage.removeItem('lyzr_access_token');
     localStorage.removeItem('lyzr_refresh_token');
     delete apiClient.defaults.headers.common['Authorization'];
     setIsAuthenticated(false);
-    queryClient.clear();
+    queryClient.clear(); 
   };
 
   const completeOnboarding = async () => {
     try {
         await updateUserDetails({ onboarding_completed: true });
+        // Manually update the user query cache for instant UI feedback
         queryClient.setQueryData(['user'], (oldData) => ({
             ...oldData,
             onboarding_completed: true,
         }));
     } catch (error) {
         console.error("Failed to update onboarding status", error);
+        // Optionally show a toast notification on failure
     }
   };
 
