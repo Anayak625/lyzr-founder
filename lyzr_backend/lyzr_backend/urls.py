@@ -11,6 +11,7 @@ urlpatterns = [
     path('health/', health_check_view),  
     path('admin/', admin.site.urls),
     path('api/v1/', include('core.urls')),
+    path('api/v1/billing/', include('billing.urls')),
 ]
 
 if settings.DEBUG:

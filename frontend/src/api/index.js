@@ -103,7 +103,28 @@ export const fetchPublicAgentConfig = async (agentId) => {
 export const submitMessageFeedback = (messageId, feedback) => apiClient.post('/feedback/', { message_id: messageId, feedback });
 
 
+// --- Billing ---
+export const fetchPlans = async () => {
+  const response = await apiClient.get('/billing/plans/');
+  return response.data;
+};
 
+export const fetchSubscription = async () => {
+  try {
+    const response = await apiClient.get('/billing/subscription/');
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return null; 
+    }
+    throw error;
+  }
+};
+
+export const createSubscription = async (planId) => {
+  const response = await apiClient.post('/billing/subscription/', { plan_id: planId });
+  return response.data;
+};
 
 
 // Mocked API Calls for Team Management future implementation

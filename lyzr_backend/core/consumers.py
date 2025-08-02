@@ -8,6 +8,7 @@ from channels.db import database_sync_to_async
 from django.utils import timezone
 from core.models import Agent, Conversation, Message, KnowledgeBase
 from core.services.lyzr_client import LyzrClient, LyzrAPIError
+from billing.models import Subscription, Usage
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +234,18 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         # which is useful for sorting tickets.
         self.conversation.updated_at = timezone.now()
         self.conversation.save(update_fields=['updated_at'])
+        # --- USAGE METERING ---
+        try:
+            if self.agent.user.subscription.status == 'ACTIVE':
+                usage, _ = Usage.objects.get_or_create(
+                    subscription=self.agent.user.subscription,
+                    date=timezone.now().date()
+                )
+                usage.messages_count += 1
+                usage.save()
+        except (Subscription.DoesNotExist, AttributeError):
+            pass
+        
         return msg
 
     @database_sync_to_async

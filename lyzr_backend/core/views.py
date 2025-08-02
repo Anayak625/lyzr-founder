@@ -23,6 +23,8 @@ from django.contrib.auth.hashers import make_password
 from django.conf import settings
 import random
 
+from billing.serializers import SubscriptionSerializer, UsageSerializer
+from billing.models import Usage
 
 logger = logging.getLogger(__name__)
 
@@ -275,9 +277,23 @@ class DashboardAnalyticsView(APIView):
             status=Conversation.Status.FLAGGED
         ).order_by('-updated_at')[:5]
 
+        # --- NEW BILLING & USAGE ANALYTICS ---
+        subscription_data = None
+        usage_data = []
+        if hasattr(user, 'subscription'):
+            subscription_data = SubscriptionSerializer(user.subscription).data
+            usage_records = Usage.objects.filter(
+                subscription=user.subscription,
+                date__gte=thirty_days_ago
+            ).order_by('date')
+            usage_data = UsageSerializer(usage_records, many=True).data
+
+
         data = {
             "kpis": ConversationAnalyticsSerializer(kpis).data,
             "chat_volume_trends": DailyChatVolumeSerializer(daily_counts, many=True).data,
-            "recent_tickets": TicketListSerializer(recent_tickets, many=True).data
+            "recent_tickets": TicketListSerializer(recent_tickets, many=True).data,
+            "subscription": subscription_data,
+            "usage_analytics": usage_data,  
         }
         return Response(data)

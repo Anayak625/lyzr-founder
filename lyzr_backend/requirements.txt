@@ -27,6 +27,7 @@ decorator==5.2.1
 dj-database-url==3.0.1
 Django==5.2.4
 django-cors-headers==4.7.0
+django-redis==6.0.0
 django-storages==1.14.6
 djangorestframework==3.16.0
 djangorestframework_simplejwt==5.5.1
@@ -65,6 +66,7 @@ pyOpenSSL==25.1.0
 python-dateutil==2.9.0.post0
 python-decouple==3.8
 pyzmq==27.0.0
+razorpay==1.4.2
 redis==6.2.0
 requests==2.32.4
 service-identity==24.2.0

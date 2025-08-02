@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'channels',
     'storages',
     'core',
+    'billing',
 ]
 
 MIDDLEWARE = [
@@ -202,6 +203,10 @@ LYZR_LLM_CREDENTIAL_ID = config('LYZR_LLM_CREDENTIAL_ID')
 LYZR_EMBEDDING_CREDENTIAL_ID = config('LYZR_EMBEDDING_CREDENTIAL_ID')
 LYZR_VECTOR_DB_CREDENTIAL_ID = config('LYZR_VECTOR_DB_CREDENTIAL_ID')
 
+
+RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID')
+RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET')
+RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET')
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'

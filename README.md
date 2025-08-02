@@ -47,7 +47,7 @@ These are planned enhancements that are modular and non-blocking to the core app
   - [ ] Role-based access control (Admin, Agent, Viewer)
 
 - [ ] 💳 Billing and Plans
-  - [ ] Stripe integration for paid plans
+  - [ ] Razorpay integration for paid plans
   - [ ] Usage-based metering
   - [ ] Subscription dashboard
 
