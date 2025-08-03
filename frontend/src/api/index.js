@@ -1,4 +1,9 @@
 import apiClient from './apiClient';
+import widgetApiClient from './widgetApiClient';
+
+export const fetchPublicAgentConfig = (agentId) => {
+    return widgetApiClient.get(`/public/agent-config/${agentId}/`);
+};
 
 // --- Authentication & User ---
 export const loginUser = (credentials) => apiClient.post('/auth/login/', credentials);
@@ -62,8 +67,6 @@ export const fetchDashboardAnalytics = async () => {
   const response = await apiClient.get('/dashboard/analytics/');
   return response.data;
 }
-export const fetchPublicAgentConfig = (agentId) => apiClient.get(`/public/agent-config/${agentId}/`);
-
 
 // --- Billing ---
 export const fetchPlans = async () => {

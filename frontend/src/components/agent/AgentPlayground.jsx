@@ -22,7 +22,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fetchAgentStatus } from "@/api";
+import { fetchAgentStatus,fetchPublicAgentConfig } from "@/api";
 
 const DEFAULT_WIDGET_SETTINGS = {
   theme_color: "#16a34a",
@@ -40,6 +40,30 @@ const launcherIcons = {
   MessageSquare: (props) => <MessageSquare {...props} />,
   Bot: (props) => <Bot {...props} />,
   Sparkles: (props) => <Sparkles {...props} />,
+};
+
+const PlaygroundWrapper = ({ agent: initialAgent, agentId, initialExpanded }) => {
+    if (initialAgent) {
+        return <AgentPlayground agent={initialAgent} isPublicWidget={false} initialExpanded={initialExpanded} />;
+    }
+
+    const { data: publicAgentConfig, isLoading, error } = useQuery({
+        queryKey: ['publicAgentConfig', agentId],
+        queryFn: () => fetchPublicAgentConfig(agentId).then(res => res.data),
+        staleTime: Infinity,
+        retry: 2,
+    });
+
+    if (isLoading) {
+        return <div className="p-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
+    }
+
+    if (error) {
+        console.error("Lyzr Widget Error: Could not load agent configuration.", error.response?.data);
+        return null; 
+    }
+
+    return <AgentPlayground agent={publicAgentConfig} isPublicWidget={true} initialExpanded={initialExpanded} />;
 };
 
 const AgentPlayground = ({ agent, initialExpanded = false }) => {
@@ -61,7 +85,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
       const data = query.state.data;
       return data?.is_ready ? false : 3000;
     },
-    enabled: !!agent?.id && isExpanded,
+    enabled: !!agent?.id && isExpanded && !isPublicWidget,
     refetchOnWindowFocus: false,
   });
 
@@ -101,11 +125,13 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
   };
 
   useEffect(() => {
+    const isAgentReady = isPublicWidget || agentStatus?.is_ready;
+
     if (!isExpanded || !agent?.id) {
       return;
     }
 
-    if (!agentStatus?.is_ready) {
+  if (!isAgentReady) {
       setConnectionStatus("pending_setup");
       return;
     }
