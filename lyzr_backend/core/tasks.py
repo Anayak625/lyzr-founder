@@ -284,3 +284,13 @@ def update_lyzr_agent_task(self, agent_id: str):
     except Exception as exc:
         logger.error(f"Unexpected error updating Lyzr agent {agent_id}: {exc}")
         raise self.retry(exc=exc)
+    
+    
+@shared_task(name="health_check_task")
+def health_check_task():
+    """
+    A simple periodic task that runs to confirm the Celery worker is
+    alive, connected, and processing tasks from the queue.
+    """
+    logger.info("CELERY BEAT HEARTBEAT: The Celery worker is alive and responsive.")
+    return "Celery worker is active."

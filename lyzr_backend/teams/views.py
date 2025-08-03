@@ -9,6 +9,7 @@ from .serializers import (
 from core.models import User
 from .permissions import IsTeamAdmin
 from .tasks import send_invitation_email_task
+from billing.utils import check_plan_limit
 
 class TeamViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -43,6 +44,7 @@ class TeamViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='invite')
     def invite(self, request, pk=None):
+        check_plan_limit(request.user, 'team_members')
         team = self.get_object()
         # This now correctly gets InviteMemberSerializer
         serializer = self.get_serializer(data=request.data)

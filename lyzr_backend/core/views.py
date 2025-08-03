@@ -28,7 +28,7 @@ import random
 from billing.models import Plan, Subscription, Usage
 from teams.models import Team, TeamMember,Invitation
 from billing.serializers import SubscriptionSerializer, UsageSerializer
-
+from billing.utils import check_plan_limit
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,12 @@ class VerifyOTPView(APIView):
                     name='Free',
                     defaults={
                         'price': 0.00,
-                        'features': {'agents': 1, 'messages': 100}
+                        'features': {
+                            'agents': 1, 
+                            'messages': 300,
+                            'team_members': 2,
+                            'knowledge_sources': 2
+                        }
                     }
                 )
                 Subscription.objects.create(user=user, plan=free_plan, status='ACTIVE')
@@ -154,6 +159,7 @@ class AgentViewSet(viewsets.ModelViewSet):
         ).filter(user=self.request.user)
 
     def perform_create(self, serializer):
+        check_plan_limit(self.request.user, 'agents')
         DEFAULT_KNOWLEDGE_TEXT = """
 Your primary role is to be a helpful and friendly customer support assistant.
 Key Instructions:
@@ -174,8 +180,8 @@ Key Instructions:
                     content=DEFAULT_KNOWLEDGE_TEXT
                 )
 
-            create_lyzr_stack_task.delay(agent.id)
-            index_knowledge_source_task.delay(default_source.id)
+            create_lyzr_stack_task.delay(str(agent.id))
+            index_knowledge_source_task.delay(str(default_source.id))
 
         except Exception as e:
             logger.error(f"Agent creation failed for user {self.request.user.email}: {e}")
@@ -183,9 +189,25 @@ Key Instructions:
 
     def perform_update(self, serializer):
         instance = serializer.save()
-
         logger.info(f"Queuing Lyzr update task for agent {instance.id}")
-        update_lyzr_agent_task.delay(instance.id)
+        update_lyzr_agent_task.delay(str(instance.id))
+
+    @action(detail=True, methods=['get'])
+    def status(self, request, pk=None):
+        """
+        A lightweight endpoint to check if the agent's Lyzr stack
+        has been created and is ready for use.
+        """
+        try:
+            agent = self.get_object()
+            is_ready = bool(agent.lyzr_agent_id and hasattr(agent, 'knowledge_base') and agent.knowledge_base.lyzr_rag_id)
+            return Response({
+                "agent_id": agent.id,
+                "is_ready": is_ready
+            })
+        except Agent.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 class KnowledgeSourceViewSet(viewsets.ModelViewSet):
@@ -197,6 +219,7 @@ class KnowledgeSourceViewSet(viewsets.ModelViewSet):
         return KnowledgeSource.objects.filter(knowledge_base__agent_id=agent_pk)
 
     def perform_create(self, serializer):
+        check_plan_limit(self.request.user, 'knowledge_sources')
         agent_pk = self.kwargs.get('agent_pk')
         try:
             kb = KnowledgeBase.objects.get(agent_id=agent_pk, agent__user=self.request.user)

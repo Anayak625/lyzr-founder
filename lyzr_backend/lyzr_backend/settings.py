@@ -3,6 +3,7 @@ from pathlib import Path
 from decouple import config
 import dj_database_url
 from datetime import timedelta
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-)ci21ajqaw27i*a+k%ihab4*qpnc^-m@k_n!1+gfkj892i78&o')
@@ -106,6 +107,12 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 
+CELERY_BEAT_SCHEDULE = {
+    'celery-health-check': {
+        'task': 'health_check_task',
+        'schedule': crontab(minute='*'),
+    },
+}
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",

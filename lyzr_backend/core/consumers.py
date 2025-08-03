@@ -9,6 +9,7 @@ from core.services.lyzr_client import LyzrClient, LyzrAPIError
 from billing.models import Subscription, Usage
 from tickets.models import Ticket
 from tickets.tasks import create_ticket_from_conversation_task
+from billing.utils import get_monthly_message_usage
 
 logger = logging.getLogger(__name__)
 
@@ -84,10 +85,37 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             'message': event['message']
         })
         
+    @database_sync_to_async
+    def is_message_limit_exceeded(self):
+        try:
+            subscription = self.agent.user.subscription
+            plan = subscription.plan
+            limit = plan.features.get('messages', 0)
+            
+            if isinstance(limit, str) and limit.lower() == 'unlimited':
+                return False
+
+            current_usage = get_monthly_message_usage(subscription)
+            return current_usage >= limit
+        except (Subscription.DoesNotExist, AttributeError):
+            return True
+        
     async def handle_user_message(self, event_data):
         message_text = event_data.get('message', '').strip()
         if not message_text:
             return
+        
+        if await self.is_message_limit_exceeded():
+            limit_message = {
+                'id': f'system_{uuid.uuid4()}',
+                'sender': 'SYSTEM',
+                'content': "You have reached your monthly message limit. Please upgrade your plan to continue chatting."
+            }
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {'type': 'broadcast_message', 'message': limit_message}
+            )
+            return 
 
 
         if message_text.lower() in ESCALATION_KEYWORDS:
