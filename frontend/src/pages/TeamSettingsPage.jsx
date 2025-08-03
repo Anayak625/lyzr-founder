@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, Users, Mail, PlusCircle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Users, Mail, PlusCircle, Loader2, Badge } from 'lucide-react';
 import TeamMembersTable from '@/components/team/TeamMembersTable';
 import InvitationsList from '@/components/team/InvitationsList';
 import { useState } from 'react';
@@ -81,10 +81,6 @@ const TeamSettingsPage = () => {
     const pendingInvitations = invitationsData?.results || [];
     const isLoading = isLoadingTeams || isLoadingInvitations;
 
-    // --- THIS IS THE KEY CHANGE ---
-    // Determine the column span for the main content dynamically.
-    // If there are invitations, the main content takes 2/3 of the space.
-    // If there are NO invitations, it takes the full 3/3 space.
     const mainContentSpan = pendingInvitations.length > 0 ? 'lg:col-span-2' : 'lg:col-span-3';
 
     return (
@@ -98,7 +94,6 @@ const TeamSettingsPage = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                {/* --- APPLY THE DYNAMIC CLASS HERE --- */}
                 <div className={`${mainContentSpan} space-y-6`}>
                     {isLoading ? (
                         <Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card>

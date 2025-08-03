@@ -59,6 +59,7 @@ class PublicAgentConfigSerializer(serializers.ModelSerializer):
         """
         return obj.get_system_prompt()
 
+
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
@@ -69,6 +70,16 @@ class ConversationSerializer(serializers.ModelSerializer):
         model = Conversation
         fields = ['id', 'end_user_id', 'summary', 'created_at', 'updated_at']
 
+class ConversationDetailSerializer(serializers.ModelSerializer):
+    agent_name = serializers.CharField(source='agent.name', read_only=True)
+    messages = MessageSerializer(many=True, read_only=True) # Use the existing MessageSerializer
+
+    class Meta:
+        model = Conversation
+        fields = [
+            'id', 'agent_name', 'end_user_id', 'summary', 
+            'created_at', 'updated_at', 'messages'
+        ]
 
 class ConversationAnalyticsSerializer(serializers.Serializer):
     total_conversations = serializers.IntegerField()

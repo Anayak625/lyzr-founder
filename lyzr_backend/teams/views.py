@@ -3,8 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Team, TeamMember, Invitation
 from .serializers import (
-    TeamSerializer, TeamDetailSerializer, TeamMemberSerializer,
-    InvitationSerializer, InviteMemberSerializer
+    TeamSerializer, TeamDetailSerializer, TeamMemberSerializer,UpdateMemberRoleSerializer,
+    InvitationSerializer, InviteMemberSerializer, TeamCreateSerializer
 )
 from core.models import User
 from .permissions import IsTeamAdmin
@@ -14,17 +14,20 @@ class TeamViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_serializer_class(self):
+        if self.action == 'create':
+            return TeamCreateSerializer
         if self.action == 'retrieve':
             return TeamDetailSerializer
+        if self.action == 'invite':
+            return InviteMemberSerializer
+        if self.action == 'update_member_role':
+            return UpdateMemberRoleSerializer
         return TeamSerializer
 
     def get_queryset(self):
-        # CORRECTED LOGIC: A user can see all teams they are a member of.
         return Team.objects.filter(members__user=self.request.user).distinct()
     
     def perform_create(self, serializer):
-        # CORRECTED LOGIC: When a user explicitly creates a team,
-        # they become the owner and an admin member.
         team = serializer.save(owner=self.request.user)
         TeamMember.objects.create(team=team, user=self.request.user, role=TeamMember.Role.ADMIN)
         
@@ -38,11 +41,13 @@ class TeamViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsTeamAdmin()]
         return [permissions.IsAuthenticated()]
     
-    @action(detail=True, methods=['post'], url_path='invite', serializer_class=InviteMemberSerializer)
+    @action(detail=True, methods=['post'], url_path='invite')
     def invite(self, request, pk=None):
         team = self.get_object()
+        # This now correctly gets InviteMemberSerializer
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # The KeyError will no longer happen
         email = serializer.validated_data['email']
         role = serializer.validated_data['role']
 
@@ -52,19 +57,10 @@ class TeamViewSet(viewsets.ModelViewSet):
         if Invitation.objects.filter(team=team, email=email, status=Invitation.Status.PENDING).exists():
             return Response({'detail': 'An active invitation for this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        invitation = Invitation.objects.create(
-            team=team,
-            email=email,
-            role=role,
-            invited_by=request.user
-        )
-        # Trigger the background task to send the email
+        invitation = Invitation.objects.create(team=team, email=email, role=role, invited_by=request.user)
         send_invitation_email_task.delay(str(invitation.id))
         
-        return Response(
-            {'detail': f'Invitation sent to {email}.'},
-            status=status.HTTP_201_CREATED
-        )
+        return Response({'detail': f'Invitation sent to {email}.'}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='remove-member/(?P<member_id>[^/.]+)')
     def remove_member(self, request, pk=None, member_id=None):
@@ -84,7 +80,9 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='update-member-role/(?P<member_id>[^/.]+)')
     def update_member_role(self, request, pk=None, member_id=None):
         team = self.get_object()
-        new_role = request.data.get('role')
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_role = serializer.validated_data['role']
 
         if not new_role or new_role not in TeamMember.Role.values:
             return Response({'detail': f'A valid role is required. Choices are: {TeamMember.Role.values}'}, status=status.HTTP_400_BAD_REQUEST)
@@ -111,7 +109,6 @@ class InvitationViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # A user can only see invitations sent to their email address
         return Invitation.objects.filter(
             email=self.request.user.email,
             status=Invitation.Status.PENDING
@@ -121,11 +118,9 @@ class InvitationViewSet(viewsets.ReadOnlyModelViewSet):
     def accept(self, request, pk=None):
         invitation = self.get_object()
         
-        # Double-check that the user accepting is the one invited
         if invitation.email != request.user.email:
             return Response({'detail': 'This invitation is not for you.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Add user to the team, checking for uniqueness constraint
         _, created = TeamMember.objects.get_or_create(
             team=invitation.team,
             user=request.user,

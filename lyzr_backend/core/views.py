@@ -11,7 +11,7 @@ from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, M
 from .serializers import (
     RegisterSerializer, UserSerializer, AgentSerializer, KnowledgeSourceSerializer,
     PublicAgentConfigSerializer, ConversationAnalyticsSerializer, DailyChatVolumeSerializer,
-    VerifyOTPSerializer, ConversationSerializer
+    VerifyOTPSerializer, ConversationSerializer, ConversationDetailSerializer
 )
 from tickets.models import Ticket
 from tickets.serializers import TicketListSerializer
@@ -290,3 +290,12 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         return Conversation.objects.filter(
             agent__user=self.request.user,
         ).order_by('-updated_at')
+        
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieves a single conversation instance, including all its messages.
+        """
+        instance = self.get_object()
+        # We need a more detailed serializer for this view
+        serializer = ConversationDetailSerializer(instance)
+        return Response(serializer.data)

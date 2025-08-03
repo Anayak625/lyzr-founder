@@ -14,8 +14,8 @@ import {
   X,
   MessageSquare,
   Sparkles,
-  LifeBuoy, // <-- Import new icon
-  Ticket,   // <-- Import new icon
+  LifeBuoy,
+  Ticket,  
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
@@ -111,7 +111,6 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
         const newMessage = data.message;
         
         // --- TICKET CREATED LOGIC ---
-        // If a ticket is created, update our state
         if (newMessage.sender === "SYSTEM" && newMessage.content.includes("support ticket")) {
             setIsTicketCreated(true);
         }
@@ -179,7 +178,6 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
     webSocket.current.send(
       JSON.stringify({ event_type: "escalate_to_ticket" })
     );
-    // Let the backend send the system message for consistency
   };
 
   const handleFeedback = (messageId, feedbackType) => {
@@ -234,7 +232,6 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
             <h3 className="font-semibold text-sm">{settings.header_text}</h3>
           </div>
           <div className="flex items-center gap-2">
-            {/* --- NEW SUPPORT BUTTON --- */}
             <Button
               variant="ghost"
               size="icon"
@@ -400,7 +397,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
               placeholder={
                 connectionStatus !== "open"
                   ? "Agent is offline..."
-                  : "Type a message..."
+                  : "Type a message or /create_ticket..."
               }
               disabled={connectionStatus !== "open" || isSending}
             />

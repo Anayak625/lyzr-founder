@@ -12,7 +12,7 @@ from tickets.tasks import create_ticket_from_conversation_task
 
 logger = logging.getLogger(__name__)
 
-ESCALATION_KEYWORDS = ['help', 'agent', 'support', 'human', 'ticket', 'operator']
+ESCALATION_KEYWORDS = ['/raise_ticket', '/create_ticket', 'create ticket', 'raise ticket']
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):

@@ -125,3 +125,8 @@ export const fetchConversations = async () => {
     const response = await apiClient.get('/conversations/');
     return response.data;
 };
+
+export const fetchConversationDetails = async (conversationId) => {
+    const response = await apiClient.get(`/conversations/${conversationId}/`);
+    return response.data;
+};

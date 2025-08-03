@@ -15,12 +15,11 @@ def send_invitation_email_task(invitation_id: str):
     try:
         invitation = Invitation.objects.select_related('team', 'invited_by').get(id=invitation_id)
         
-        # You would replace 'https://your-frontend.com' with your actual frontend URL
-        frontend_url = "https://your-frontend.com/invitations"
+        frontend_url = "https://lyzr-founder.vercel.app/invitations"
         
         context = {
             'team_name': invitation.team.name,
-            'inviter_name': invitation.invited_by.full_name or invitation.invited_by.email,
+            'inviter_name': invitation.invited_by.email,
             'invitation_link': frontend_url
         }
         

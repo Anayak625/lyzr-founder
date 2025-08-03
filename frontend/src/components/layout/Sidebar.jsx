@@ -18,7 +18,6 @@ const Sidebar = () => {
   ];
 
   const isActive = (path) => {
-    // Special handling for agent routes
     if (path === '/app/agent') {
       return location.pathname.startsWith('/app/agent');
     }
@@ -32,7 +31,7 @@ const Sidebar = () => {
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-primary-foreground" />
           </div>
-          <span className="text-lg font-bold">Lyzr</span>
+          <span className="text-lg font-bold">Lyzr Foundary</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-2">
