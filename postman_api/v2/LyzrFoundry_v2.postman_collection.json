@@ -1,0 +1,564 @@
+{
+	"info": {
+		"name": "LyzrFoundry - Complete API Collection (v3)",
+		"description": {
+			"content": "Complete Postman collection for the LyzrFoundry backend. Includes authentication, agents, knowledge sources, tickets, conversations, full team management, billing, and dashboard analytics. This collection features automated JWT handling, ID chaining, and detailed example responses for a seamless testing workflow.",
+			"type": "text/markdown"
+		},
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"exec": [
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://127.0.0.1:8000/api/v1');",
+					"}"
+				],
+				"type": "text/javascript"
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"exec": [
+					"if (pm.response.code >= 400) {",
+					"    console.error(`❌ Error: ${pm.request.method} ${pm.request.url} | ${pm.response.code} ${pm.response.status}`);",
+					"    try { console.error('Response Body:', pm.response.json()); } catch (e) { console.error('Response Text:', pm.response.text()); }",
+					"} else {",
+					"    console.log(`✅ Success: ${pm.request.method} ${pm.request.url} | ${pm.response.code} ${pm.response.status}`);",
+					"}"
+				],
+				"type": "text/javascript"
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "🔑 Authentication",
+			"description": "User authentication endpoints: register, verify OTP, login, refresh token, and user profile.",
+			"item": [
+				{
+					"name": "1. Register User (Send OTP)",
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test.user@example.com\",\n  \"password\": \"LyzrTest_12345\",\n  \"full_name\": \"Test User\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/auth/register/"
+					},
+					"response": [
+						{
+							"name": "Success - OTP Sent",
+							"originalRequest": {
+								"method": "POST",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"test.user@example.com\",\n  \"password\": \"LyzrTest_12345\",\n  \"full_name\": \"Test User\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": "{{base_url}}/auth/register/"
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{\n    \"detail\": \"Verification code sent to your email. Please check.\",\n    \"email\": \"test.user@example.com\"\n}"
+						}
+					]
+				},
+				{
+					"name": "2. Verify OTP",
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test.user@example.com\",\n    \"otp\": \"123456\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/auth/verify-otp/"
+					},
+					"response": [
+						{
+							"name": "Success - Account Created",
+							"originalRequest": {
+								"method": "POST",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"test.user@example.com\",\n    \"otp\": \"123456\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": "{{base_url}}/auth/verify-otp/"
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{\n    \"detail\": \"Account successfully verified. You can now log in.\"\n}"
+						}
+					]
+				},
+				{
+					"name": "3. Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    pm.environment.set('access_token', responseJson.access);",
+									"    pm.environment.set('refresh_token', responseJson.refresh);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test.user@example.com\",\n  \"password\": \"LyzrTest_12345\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/auth/login/"
+					}
+				},
+				{
+					"name": "Get User Profile",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/auth/me/"
+					}
+				}
+			]
+		},
+		{
+			"name": "🤖 Agents Management",
+			"item": [
+				{
+					"name": "Create New Agent",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    pm.environment.set('agent_id', pm.response.json().id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Portfolio Assistant\",\n    \"agent_role\": \"You are a helpful AI assistant for my portfolio.\",\n    \"model\": \"gpt-4o-mini\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/agents/"
+					}
+				},
+				{
+					"name": "Get All Agents",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const results = pm.response.json().results;",
+									"    if (results.length > 0) {",
+									"        pm.environment.set('agent_id', results[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/agents/"
+					}
+				},
+				{
+					"name": "Get Agent Status (for chat)",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/agents/{{agent_id}}/status/"
+					}
+				}
+			]
+		},
+		{
+			"name": "📚 Knowledge Sources",
+			"description": "Manage knowledge sources (files, URLs, text) for agent training.",
+			"item": [
+				{
+					"name": "Get Agent Knowledge Sources",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const results = pm.response.json().results;",
+									"    if (results.length > 0) {",
+									"        pm.environment.set('knowledge_source_id', results[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/"
+					}
+				},
+				{
+					"name": "Add URL Source",
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"URL\",\n  \"title\": \"Lyzr AI Blog\",\n  \"content\": \"https://www.lyzr.ai/blog/\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/agents/{{agent_id}}/knowledge-sources/"
+					}
+				}
+			]
+		},
+		{
+			"name": "💬 Conversations Inbox",
+			"description": "Monitor and manage ongoing chats that have not yet been escalated to tickets.",
+			"item": [
+				{
+					"name": "Get All Conversations (Unticketed)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const results = pm.response.json().results;",
+									"    if (results.length > 0) {",
+									"        pm.environment.set('conversation_id', results[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/conversations/"
+					}
+				},
+				{
+					"name": "Get Conversation Details",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/conversations/{{conversation_id}}/"
+					}
+				}
+			]
+		},
+		{
+			"name": "🎟️ Tickets & Helpdesk",
+			"description": "Manage customer support tickets.",
+			"item": [
+				{
+					"name": "Create Ticket from Conversation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    pm.environment.set('ticket_id', pm.response.json().id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"User needs help with their account\",\n    \"priority\": \"NORMAL\",\n    \"conversation_id\": \"{{conversation_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/tickets/"
+					}
+				},
+				{
+					"name": "Get All Tickets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const results = pm.response.json().results;",
+									"    if (results.length > 0) {",
+									"        pm.environment.set('ticket_id', results[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/tickets/"
+					}
+				},
+				{
+					"name": "Get Ticket Details",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/tickets/{{ticket_id}}/"
+					}
+				}
+			]
+		},
+		{
+			"name": "👥 Team Management",
+			"description": "Manage teams, members, and invitations. To test the full invitation flow, you will need to register a second user with the email defined in the `user_2_email` environment variable.",
+			"item": [
+				{
+					"name": "Create New Team",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    pm.environment.set('team_id', pm.response.json().id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Customer Support Team\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/teams/"
+					}
+				},
+				{
+					"name": "Get My Teams",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const results = pm.response.json().results;",
+									"    if (results.length > 0) {",
+									"        pm.environment.set('team_id', results[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/teams/"
+					}
+				},
+				{
+					"name": "Get Team Details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const members = pm.response.json().members;",
+									"    if (members.length > 1) { // Get a member who is not the owner",
+									"        pm.environment.set('member_id', members[1].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/teams/{{team_id}}/"
+					}
+				},
+				{
+					"name": "Invite Member to Team",
+					"request": {
+						"method": "POST",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_2_email}}\",\n    \"role\": \"MEMBER\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/teams/{{team_id}}/invite/"
+					}
+				},
+				{
+					"name": "💌 Invitations",
+					"description": "To test this, you must first invite a user (e.g., `user_2_email`), then register and log in as that second user to view and accept the invitation.",
+					"item": [
+						{
+							"name": "Get My Pending Invitations",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    const results = pm.response.json().results;",
+											"    if (results.length > 0) {",
+											"        pm.environment.set('invitation_id', results[0].id);",
+											"    }",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"url": "{{base_url}}/invitations/"
+							}
+						},
+						{
+							"name": "Accept Invitation",
+							"request": {
+								"method": "POST",
+								"url": "{{base_url}}/invitations/{{invitation_id}}/accept/"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "💰 Billing & Subscriptions",
+			"description": "Manage subscription plans and payments.",
+			"item": [
+				{
+					"name": "Get Available Plans",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const results = pm.response.json().results;",
+									"    const proPlan = results.find(p => p.name === 'Pro');",
+									"    if (proPlan) {",
+									"        pm.environment.set('plan_id', proPlan.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/billing/plans/"
+					}
+				},
+				{
+					"name": "Get My Subscription",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/billing/subscription/"
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Dashboard Analytics",
+			"description": "High-level analytics data for monitoring performance.",
+			"item": [
+				{
+					"name": "Get Dashboard Analytics",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/dashboard/analytics/"
+					}
+				}
+			]
+		}
+	]
+}

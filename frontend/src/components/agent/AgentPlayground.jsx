@@ -19,9 +19,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
-
+import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { fetchAgentStatus } from "@/api";
 
 const DEFAULT_WIDGET_SETTINGS = {
   theme_color: "#16a34a",
@@ -46,12 +47,23 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("connecting");
+  const [connectionStatus, setConnectionStatus] = useState("pending_setup");
   const [sessionId, setSessionId] = useState(null);
-  const [isTicketCreated, setIsTicketCreated] = useState(false); // <-- New state
+  const [isTicketCreated, setIsTicketCreated] = useState(false);
   const webSocket = useRef(null);
   const messagesEndRef = useRef(null);
   const { toast } = useToast();
+
+   const { data: agentStatus, isError: isStatusError } = useQuery({
+    queryKey: ['agentStatus', agent?.id],
+    queryFn: () => fetchAgentStatus(agent.id),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.is_ready ? false : 3000;
+    },
+    enabled: !!agent?.id && isExpanded,
+    refetchOnWindowFocus: false,
+  });
 
   const settings = {
     ...DEFAULT_WIDGET_SETTINGS,
@@ -73,11 +85,15 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
 
   const handleNewSession = () => {
     if (!agent?.id) return;
+    if (webSocket.current) {
+        webSocket.current.close();
+    }
     const storageKey = `lyzr_playground_session_${agent.id}`;
     localStorage.removeItem(storageKey);
     setMessages([]);
-    setIsTicketCreated(false); // <-- Reset on new session
-    setSessionId(getOrCreateSessionId(agent.id));
+    setIsTicketCreated(false);
+    setSessionId(getOrCreateSessionId(agent.id)); // This will trigger the useEffect to reconnect
+    setConnectionStatus('pending_setup');
     toast({
       title: "New Session Started",
       description: "Your conversation history has been cleared.",
@@ -85,74 +101,77 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
   };
 
   useEffect(() => {
-    if (!agent?.id || !isExpanded) return;
+    if (!isExpanded || !agent?.id) {
+      return;
+    }
+
+    if (!agentStatus?.is_ready) {
+      setConnectionStatus("pending_setup");
+      return;
+    }
+
+    // Agent is ready, proceed with connection logic
     if (!sessionId) {
       setSessionId(getOrCreateSessionId(agent.id));
       return;
     }
+    
+    // Prevent reconnection if already open
+    if (webSocket.current && webSocket.current.readyState === WebSocket.OPEN) {
+      return;
+    }
+
     setConnectionStatus("connecting");
     const getChatWebSocketURL = (agentId, sessionId) => {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = import.meta.env.VITE_APP_WS_URL || window.location.host;
+      const host = import.meta.env.VITE_APP_WS_URL || "127.0.0.1:8000"; // Fallback for safety
       return `${protocol}//${host}/ws/chat/${agentId}/${sessionId}/`;
     };
 
     const wsUrl = getChatWebSocketURL(agent.id, sessionId);
-    if (webSocket.current) webSocket.current.close();
     webSocket.current = new WebSocket(wsUrl);
-    webSocket.current.onopen = () => setConnectionStatus("open");
+
+    webSocket.current.onopen = () => {
+      setConnectionStatus("open");
+    };
+    
     webSocket.current.onmessage = (event) => {
       setIsSending(false);
       const data = JSON.parse(event.data);
-      if (
-        data.event_type === "new_message" ||
-        data.event_type === "ticket_created"
-      ) {
+      if (data.event_type === "new_message" || data.event_type === "ticket_created") {
         const newMessage = data.message;
-        
-        // --- TICKET CREATED LOGIC ---
         if (newMessage.sender === "SYSTEM" && newMessage.content.includes("support ticket")) {
-            setIsTicketCreated(true);
+          setIsTicketCreated(true);
         }
-
         setMessages((prev) => {
-          if (newMessage.sender === "USER") {
-            const newMsgList = [...prev];
-            const optimisticMsgIndex = newMsgList.findLastIndex((m) =>
-              m.id.startsWith("user_")
-            );
-            if (optimisticMsgIndex !== -1) {
-              newMsgList[optimisticMsgIndex] = newMessage;
-              return newMsgList;
-            }
-          }
           if (prev.find((m) => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
       } else if (data.event_type === "feedback_confirmation") {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === data.message_id
-              ? { ...msg, feedback: msg.pendingFeedback }
-              : msg
+            msg.id === data.message_id ? { ...msg, feedback: msg.pendingFeedback } : msg
           )
         );
       }
     };
-    webSocket.current.onclose = () => setConnectionStatus("closed");
+
     webSocket.current.onerror = (err) => {
       console.error("WebSocket Error:", err);
+      // The onclose event will handle the state change
+    };
+
+    webSocket.current.onclose = () => {
       setConnectionStatus("closed");
-      toast({
-        title: "Connection Error",
-        description: "Could not connect to the agent. Please refresh.",
-        variant: "destructive",
-      });
     };
+
     return () => {
-      if (webSocket.current) webSocket.current.close();
+      if (webSocket.current) {
+        webSocket.current.close();
+      }
     };
-  }, [agent, sessionId, isExpanded, getOrCreateSessionId, toast]);
+  }, [agentStatus, agent?.id, isExpanded, sessionId, getOrCreateSessionId]);
+
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -160,8 +179,9 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
 
   const handleSend = () => {
     if (!inputValue.trim() || connectionStatus !== "open" || isSending) return;
+    const optimisticId = `user_${uuidv4()}`;
     const userMessage = {
-      id: `user_${Date.now()}`,
+      id: optimisticId,
       sender: "USER",
       content: inputValue,
     };
@@ -209,8 +229,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
   return (
     <div className="w-full h-full relative">
       <div
-        className={`w-full h-full flex flex-col bg-background rounded-2xl shadow-2xl border overflow-hidden transition-opacity duration-300 ${isExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
+        className={`w-full h-full flex flex-col bg-background rounded-2xl shadow-2xl border overflow-hidden transition-opacity duration-300 ${isExpanded ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={isExpanded ? { height: "600px" } : { height: "0px" }}
       >
         <div
@@ -219,93 +238,42 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
         >
           <div className="flex items-center gap-3">
             {settings.bot_avatar_url ? (
-              <img
-                src={settings.bot_avatar_url}
-                alt="Bot Avatar"
-                className="w-8 h-8 rounded-full bg-white/30 object-cover"
-              />
+              <img src={settings.bot_avatar_url} alt="Bot Avatar" className="w-8 h-8 rounded-full bg-white/30 object-cover" />
             ) : (
-              <div className="p-1.5 bg-white/30 rounded-full">
-                <Bot className="h-5 w-5" />
-              </div>
+              <div className="p-1.5 bg-white/30 rounded-full"><Bot className="h-5 w-5" /></div>
             )}
             <h3 className="font-semibold text-sm">{settings.header_text}</h3>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleEscalate}
-              title="Request Support"
-              className="text-white/80 hover:text-white hover:bg-white/20 h-8 w-8"
-              disabled={isTicketCreated}
-            >
+            <Button variant="ghost" size="icon" onClick={handleEscalate} title="Request Support" className="text-white/80 hover:text-white hover:bg-white/20 h-8 w-8" disabled={isTicketCreated}>
               <LifeBuoy className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleNewSession}
-              title="Start New Session"
-              className="text-white/80 hover:text-white hover:bg-white/20 h-8 w-8"
-            >
+            <Button variant="ghost" size="icon" onClick={handleNewSession} title="Start New Session" className="text-white/80 hover:text-white hover:bg-white/20 h-8 w-8">
               <RefreshCcw className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsExpanded(false)}
-              title="Minimize Chat"
-              className="text-white/80 hover:text-white hover:bg-white/20 h-8 w-8"
-            >
+            <Button variant="ghost" size="icon" onClick={() => setIsExpanded(false)} title="Minimize Chat" className="text-white/80 hover:text-white hover:bg-white/20 h-8 w-8">
               <X className="h-5 w-5" />
             </Button>
           </div>
         </div>
-
-        <div
-          className="flex-grow overflow-y-auto p-4 space-y-4"
-          style={{ backgroundColor: "rgba(255, 255, 255, 1)" }}
-        >
+        <div className="flex-grow overflow-y-auto p-4 space-y-4 bg-white">
           {displayedMessages.map((msg, index) => (
-            <div
-              key={msg.id || index}
-              className={`flex flex-col items-start gap-2 ${msg.sender === "USER" ? "items-end" : ""
-                }`}
-            >
-              <div
-                className={`flex items-start gap-3 w-full ${msg.sender === "USER" ? "justify-end" : ""
-                  }`}
-              >
+            <div key={msg.id || index} className={`flex flex-col items-start gap-2 ${msg.sender === "USER" ? "items-end" : ""}`}>
+              <div className={`flex items-start gap-3 w-full ${msg.sender === "USER" ? "justify-end" : ""}`}>
                 {msg.sender === "AI" && (
                   <div className="flex-shrink-0 mt-1">
                     {settings.bot_avatar_url ? (
-                      <img
-                        src={settings.bot_avatar_url}
-                        alt="Bot Avatar"
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                      <img src={settings.bot_avatar_url} alt="Bot Avatar" className="w-8 h-8 rounded-full object-cover" />
                     ) : (
-                      <div
-                        className="p-2 rounded-full flex items-center justify-center"
-                        style={{ backgroundColor: themeColor + "20" }}
-                      >
-                        <Bot
-                          className="h-5 w-5"
-                          style={{ color: themeColor }}
-                        />
+                      <div className="p-2 rounded-full flex items-center justify-center" style={{ backgroundColor: themeColor + "20" }}>
+                        <Bot className="h-5 w-5" style={{ color: themeColor }} />
                       </div>
                     )}
                   </div>
                 )}
                 <div
-                  className={`max-w-md p-3 rounded-lg text-sm break-words shadow-sm ${msg.sender === "USER"
-                      ? "text-primary-foreground user-msg-box"
-                      : "bg-background"
-                    }`}
-                  style={
-                    msg.sender === "USER" ? { backgroundColor: themeColor } : {}
-                  }
+                  className={`max-w-md p-3 rounded-lg text-sm break-words shadow-sm ${msg.sender === "USER" ? "text-primary-foreground user-msg-box" : "bg-background"}`}
+                  style={msg.sender === "USER" ? { backgroundColor: themeColor } : {}}
                 >
                   {isEscalationMessage(msg.content) && !isTicketCreated ? (
                     <div>
@@ -321,42 +289,22 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
                   )}
                 </div>
                 {msg.sender === "USER" && (
-                  <div className="p-2 rounded-full bg-muted flex-shrink-0 mt-1">
-                    <User className="h-5 w-5" />
-                  </div>
+                  <div className="p-2 rounded-full bg-muted flex-shrink-0 mt-1"><User className="h-5 w-5" /></div>
                 )}
               </div>
               {msg.sender === "AI" && msg.id !== "init" && (
                 <div className="flex gap-1 ml-12">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className={`h-7 w-7 ${msg.feedback === "POSITIVE"
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                      }`}
-                    onClick={() => handleFeedback(msg.id, "POSITIVE")}
-                    disabled={!!msg.feedback}
-                  >
+                  <Button size="icon" variant="ghost" className={`h-7 w-7 ${msg.feedback === "POSITIVE" ? "text-primary" : "text-muted-foreground"}`} onClick={() => handleFeedback(msg.id, "POSITIVE")} disabled={!!msg.feedback}>
                     <ThumbsUp className="h-4 w-4" />
                   </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className={`h-7 w-7 ${msg.feedback === "NEGATIVE"
-                        ? "text-destructive"
-                        : "text-muted-foreground"
-                      }`}
-                    onClick={() => handleFeedback(msg.id, "NEGATIVE")}
-                    disabled={!!msg.feedback}
-                  >
+                  <Button size="icon" variant="ghost" className={`h-7 w-7 ${msg.feedback === "NEGATIVE" ? "text-destructive" : "text-muted-foreground"}`} onClick={() => handleFeedback(msg.id, "NEGATIVE")} disabled={!!msg.feedback}>
                     <ThumbsDown className="h-4 w-4" />
                   </Button>
                 </div>
               )}
             </div>
           ))}
-          {isSending && !messages.findLast((m) => m.id.startsWith("user_")) && (
+          {isSending && (
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-full bg-primary/10 flex-shrink-0">
                 <Bot className="h-5 w-5 text-primary" />
@@ -368,44 +316,49 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
           )}
           <div ref={messagesEndRef} />
         </div>
-
-        <div
-          className="p-4 border-t rounded-b-lg"
-          style={{ backgroundColor: "rgba(255, 255, 255, 1)" }}
-        >
-          {connectionStatus === "connecting" && (
+        <div className="p-4 border-t bg-white rounded-b-lg">
+          {connectionStatus === "pending_setup" && (
             <div className="flex justify-center text-sm items-center text-muted-foreground mb-2">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Connecting...
+              Setting up your agent, please wait...
+            </div>
+          )}
+          {connectionStatus === "connecting" && (
+             <div className="flex justify-center text-sm items-center text-muted-foreground mb-2">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Connecting to agent...
             </div>
           )}
           {connectionStatus === "closed" && (
-            <Alert variant="destructive" className="mb-2">
+             <Alert variant="destructive" className="mb-2">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Connection Lost</AlertTitle>
-              <AlertDescription>Please refresh to reconnect.</AlertDescription>
+              <AlertDescription>The connection to the agent was lost. Please try starting a new session.</AlertDescription>
             </Alert>
           )}
-          <div
-            className="flex gap-2 input-button-box"
-            style={{ color: "#374151" }}
-          >
+          {isStatusError && (
+             <Alert variant="destructive" className="mb-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>Could not verify agent status.</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-2">
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
               placeholder={
-                connectionStatus !== "open"
-                  ? "Agent is offline..."
-                  : "Type a message or /create_ticket..."
+                connectionStatus === 'open' 
+                  ? "Ask me anything or /raise_ticket..." 
+                  : "Agent is getting ready..."
               }
               disabled={connectionStatus !== "open" || isSending}
             />
             <Button
               onClick={handleSend}
-              disabled={
-                connectionStatus !== "open" || !inputValue.trim() || isSending
-              }
+              disabled={connectionStatus !== "open" || !inputValue.trim() || isSending}
               style={{ backgroundColor: themeColor, color: "white" }}
             >
               <Send className="h-4 w-4" />
@@ -413,36 +366,17 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
           </div>
         </div>
       </div>
-
-      <div
-        className={`absolute bottom-0 right-0 transition-opacity duration-300 ${!isExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-      >
-        <Button
-          onClick={() => setIsExpanded(true)}
-          className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
-          style={{ backgroundColor: themeColor }}
-        >
+      <div className={`absolute bottom-0 right-0 transition-opacity duration-300 ${!isExpanded ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+        <Button onClick={() => setIsExpanded(true)} className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110" style={{ backgroundColor: themeColor }}>
           <LauncherIcon className="w-8 h-8 text-white" />
         </Button>
       </div>
-      <style>
-        {`
-          .user-msg-box p {
-            color: white !important;
-          }
-          .user-msg-box{
-            border-radius:8px !important;
-          }
-          .bot-msg-box{
-            border-radius:8px !important;
-          }
-          .input-button-box button,
-          .input-button-box input{
-            border-radius:8px !important;
-          }
-        `}
-      </style>
+      <style>{`
+          .user-msg-box p { color: white !important; }
+          .user-msg-box { border-radius:8px !important; }
+          .bot-msg-box { border-radius:8px !important; }
+          .input-button-box button, .input-button-box input { border-radius:8px !important; }
+      `}</style>
     </div>
   );
 };

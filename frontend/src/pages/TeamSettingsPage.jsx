@@ -88,7 +88,7 @@ const TeamSettingsPage = () => {
             <div className="flex justify-between items-center">
                 <CardHeader className="px-0">
                     <CardTitle className="text-3xl font-bold tracking-tight flex items-center gap-3"><Users /> Team Management</CardTitle>
-                    <CardDescription>Manage your teams, invite members, and handle pending invitations.</CardDescription>
+                    <CardDescription>Manage your teams, invite members, and handle pending invitations. Make sure to form a team to receive ticket issues.</CardDescription>
                 </CardHeader>
                 <CreateTeam />
             </div>

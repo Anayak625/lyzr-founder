@@ -33,6 +33,10 @@ export const deleteAgent = async (agentId) => {
   const response = await apiClient.delete(`/agents/${agentId}/`);
   return response.data;
 };
+export const fetchAgentStatus = async (agentId) => {
+    const response = await apiClient.get(`/agents/${agentId}/status/`);
+    return response.data;
+};
 
 
 // --- Knowledge Sources ---
