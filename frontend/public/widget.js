@@ -36,19 +36,20 @@
   // 1. Widget's CSS file
   const cssLink = document.createElement('link');
   cssLink.rel = 'stylesheet';
-  cssLink.href = `${APP_HOST}/assets/index.css`; 
+  cssLink.href = `${APP_HOST}/dist-widget/widget.css`; 
   shadowRoot.appendChild(cssLink);
   
   // 2. Widget's JavaScript Application
   const mainScript = document.createElement('script');
   mainScript.type = 'module';
-  mainScript.src = `${APP_HOST}/assets/widget.js`; 
+  mainScript.src = `${APP_HOST}/dist-widget/widget.js`; // No more /assets/
   
   mainScript.onload = () => {
     if (window.mountLyzrWidget) {
+      // The appRoot is the div inside your shadow DOM
       window.mountLyzrWidget(appRoot, AGENT_ID);
     } else {
-      console.error('Lyzr Widget: The mount function is not available. The widget script may have failed to load.');
+      console.error('Lyzr Widget: The mount function is not available.');
     }
   };
   

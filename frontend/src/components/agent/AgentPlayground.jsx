@@ -63,7 +63,7 @@ const PlaygroundWrapper = ({ agent: initialAgent, agentId, initialExpanded }) =>
         return null; 
     }
 
-    return <AgentPlayground agent={publicAgentConfig} isPublicWidget={true} initialExpanded={initialExpanded} />;
+    return <AgentPlayground agent={publicAgentConfig}  initialExpanded={initialExpanded} />;
 };
 
 const AgentPlayground = ({ agent, initialExpanded = false }) => {
@@ -85,7 +85,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
       const data = query.state.data;
       return data?.is_ready ? false : 3000;
     },
-    enabled: !!agent?.id && isExpanded && !isPublicWidget,
+    enabled: !!agent?.id && isExpanded ,
     refetchOnWindowFocus: false,
   });
 
@@ -125,7 +125,7 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
   };
 
   useEffect(() => {
-    const isAgentReady = isPublicWidget || agentStatus?.is_ready;
+    const isAgentReady = agentStatus?.is_ready;
 
     if (!isExpanded || !agent?.id) {
       return;
@@ -148,11 +148,17 @@ const AgentPlayground = ({ agent, initialExpanded = false }) => {
     }
 
     setConnectionStatus("connecting");
-    const getChatWebSocketURL = (agentId, sessionId) => {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = import.meta.env.VITE_APP_WS_URL || "127.0.0.1:8000"; // Fallback for safety
-      return `${protocol}//${host}/ws/chat/${agentId}/${sessionId}/`;
-    };
+const getChatWebSocketURL = (agentId, sessionId) => {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  
+  // Get the base host URL from the environment variable
+  let host = import.meta.env.VITE_APP_WS_URL || "127.0.0.1:8000";
+  
+  // NEW: Remove any existing http:// or https:// from the host variable
+  host = host.replace(/^https?:\/\//, '');
+
+  return `${protocol}//${host}/ws/chat/${agentId}/${sessionId}/`;
+};
 
     const wsUrl = getChatWebSocketURL(agent.id, sessionId);
     webSocket.current = new WebSocket(wsUrl);

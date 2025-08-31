@@ -23,7 +23,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         try:
             self.agent = await self.get_agent(self.agent_id)
-            if not self.agent or not self.agent.is_active or not self.agent.lyzr_agent_id:
+            if not self.agent:
                 logger.warning(f"Connection denied for agent_id '{self.agent_id}': Agent not found, inactive, or not configured.")
                 await self.close(code=4004)
                 return
