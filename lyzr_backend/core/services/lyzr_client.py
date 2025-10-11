@@ -1,11 +1,13 @@
 import requests
 import logging
 import time
+import tempfile
+import os
 from typing import Dict, Any, Optional, List
 from django.conf import settings
 import json
 from core.models import Agent
-import uuid 
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,20 @@ class LyzrClient:
             headers['Content-Type'] = 'application/json'
         kwargs['headers'] = {**headers, **kwargs.get('headers', {})}
         
-        logger.debug(f"Making Lyzr request: {method} {url} with payload {kwargs.get('json')}")
+        payload_keys = [key for key in ('json', 'data', 'files') if key in kwargs and kwargs[key] is not None]
+        logger.debug(f"Making Lyzr request: {method} {url} with payload types: {payload_keys}")
+        
+        # Log file details if present
+        if 'files' in kwargs:
+            file_info = []
+            for k, v in kwargs['files'].items():
+                if isinstance(v, tuple):
+                    file_info.append(f"{k}={v[0]}")
+                else:
+                    file_info.append(k)
+            logger.debug(f"Files being sent: {file_info}")
+        if 'data' in kwargs:
+            logger.debug(f"Form data being sent: {kwargs['data']}")
         
         for attempt in range(max_retries + 1):
             try:
@@ -44,11 +59,11 @@ class LyzrClient:
                 error_data = {}
                 try:
                     error_data = response.json()
-                except ValueError:
+                except (json.JSONDecodeError, ValueError):
                     error_data = {'detail': response.text}
 
-                if response.status_code in [404, 422]:
-                    error_msg = f"HTTP Error {response.status_code}: {error_data.get('detail', 'Unknown error')}"
+                if response.status_code in [400, 404, 422]:
+                    error_msg = f"Client Error {response.status_code}: {error_data.get('detail', 'Unknown error')}"
                     logger.error(f"{error_msg} for URL: {url}")
                     raise LyzrAPIError(error_msg, response.status_code, error_data)
                 
@@ -77,29 +92,31 @@ class LyzrClient:
         provider = provider_map.get(agent.model.split('-')[0], 'OpenAI')
 
         payload = {
-            "name": agent.name,
+            "name": agent.name, 
             "description": agent.description or f"AI Agent: {agent.name}",
-            "agent_role": agent.agent_role,
+            "agent_role": agent.agent_role, 
             "agent_goal": agent.agent_goal,
-            "agent_instructions": agent.agent_instructions,
+            "agent_instructions": agent.agent_instructions, 
             "examples": agent.examples,
-            "tool": "",
-            "tool_usage_description": "{}",
-            "provider_id": provider,
+            "tool": "", 
+            "tool_usage_description": "{}", 
+            "provider_id": provider, 
             "model": agent.model,
-            "temperature": str(agent.temperature),
+            "temperature": str(agent.temperature), 
             "top_p": str(agent.top_p),
-            "llm_credential_id": settings.LYZR_LLM_CREDENTIAL_ID,
+            "llm_credential_id": settings.LYZR_LLM_CREDENTIAL_ID, 
             "features": [],
-            "managed_agents": [],
+            "managed_agents": [], 
             "response_format": {"type": "text"}
         }
         return payload
 
     def create_rag_config(self, collection_name: str, model: str) -> Dict[str, Any]:
         payload = {
-            "user_id": settings.LYZR_API_KEY, "collection_name": collection_name,
-            "llm_model": model, "embedding_model": "text-embedding-ada-002",
+            "user_id": settings.LYZR_API_KEY, 
+            "collection_name": collection_name,
+            "llm_model": model, 
+            "embedding_model": "text-embedding-ada-002",
             "vector_store_provider": "Weaviate [Lyzr]",
             "llm_credential_id": settings.LYZR_LLM_CREDENTIAL_ID,
             "embedding_credential_id": settings.LYZR_EMBEDDING_CREDENTIAL_ID,
@@ -109,10 +126,7 @@ class LyzrClient:
     
     def create_agent(self, agent: Agent) -> Dict[str, Any]:
         payload = self._build_agent_payload(agent)
-        payload["features"] = [
-             {"type": "MEMORY", "config": {"max_messages_context_count": 10}, "priority": 1}
-        ]
-        
+        payload["features"] = [{"type": "MEMORY", "config": {"max_messages_context_count": 10}, "priority": 1}]
         logger.info(f"Creating Lyzr agent with structured payload for agent {agent.id}")
         return self._make_request(self.agent_base_url, 'POST', 'v3/agents/', json=payload)
 
@@ -123,41 +137,54 @@ class LyzrClient:
         endpoint = f"v3/agents/{lyzr_agent_id}"
         payload = self._build_agent_payload(agent)
         payload["features"] = features
-        
         logger.info(f"Updating Lyzr agent {lyzr_agent_id} with new structured data.")
         return self._make_request(self.agent_base_url, 'PUT', endpoint, json=payload)
     
     def update_agent_with_rag(self, lyzr_agent_id: str, rag_id: str, collection: str, agent_model: Agent) -> Dict[str, Any]:
         logger.info(f"Getting existing agent config for {lyzr_agent_id}")
         payload = self._build_agent_payload(agent_model)
-
-        features_with_priority = [
-            {"type": "KNOWLEDGE_BASE", "config": {"lyzr_rag": {"base_url": "https://rag-prod.studio.lyzr.ai","rag_id": rag_id,"rag_name": collection, "params": {"top_k": 5,"retrieval_type": "basic", "score_threshold": 0.4}}}, "priority": 0},
-            {"type": "MEMORY", "config": {"max_messages_context_count": 10}, "priority": 1}
+        payload['features'] = [
+            {
+                "type": "KNOWLEDGE_BASE", 
+                "config": {
+                    "lyzr_rag": {
+                        "base_url": self.rag_base_url.rstrip('/'),
+                        "rag_id": rag_id,
+                        "rag_name": collection, 
+                        "params": {
+                            "top_k": 5,
+                            "retrieval_type": "basic", 
+                            "score_threshold": 0.4
+                        }
+                    }
+                }, 
+                "priority": 0
+            },
+            {
+                "type": "MEMORY", 
+                "config": {"max_messages_context_count": 10}, 
+                "priority": 1
+            }
         ]
-        
-        payload['features'] = features_with_priority
-
         logger.info(f"Updating agent {lyzr_agent_id} with complete payload including RAG.")
         return self._make_request(self.agent_base_url, 'PUT', f"v3/agents/{lyzr_agent_id}", json=payload)
         
     def index_file(self, rag_id: str, file_obj, file_name: str) -> Dict[str, Any]:
         file_extension = file_name.lower().split('.')[-1]
-        
         file_config = {
-            'pdf': {'endpoint': 'v3/train/pdf/', 'parser': 'llmsherpa'},
-            'docx': {'endpoint': 'v3/train/docx/', 'parser': 'docx2txt'},
-            'doc': {'endpoint': 'v3/train/docx/', 'parser': 'docx2txt'},
-            'txt': {'endpoint': 'v3/train/txt/', 'parser': 'txt_parser'},
-            'csv': {'endpoint': 'v3/train/csv/', 'parser': 'csv_parser'},
-            'json': {'endpoint': 'v3/train/txt/', 'parser': 'txt_parser'},
-            'html': {'endpoint': 'v3/train/txt/', 'parser': 'txt_parser'},
-            'md': {'endpoint': 'v3/train/txt/', 'parser': 'txt_parser'}
+            'pdf': {'endpoint': 'v3/train/pdf/'},
+            'docx': {'endpoint': 'v3/train/docx/'},
+            'doc': {'endpoint': 'v3/train/docx/'},
+            'txt': {'endpoint': 'v3/train/txt/'},
+            'csv': {'endpoint': 'v3/train/csv/'},
+            'json': {'endpoint': 'v3/train/txt/'},
+            'html': {'endpoint': 'v3/train/txt/'},
+            'md': {'endpoint': 'v3/train/txt/'}
         }
         
         if file_extension not in file_config:
             raise LyzrAPIError(f"Unsupported file type: {file_extension}")
-            
+        
         config = file_config[file_extension]
         endpoint = f"{config['endpoint']}?rag_id={rag_id}"
         
@@ -172,10 +199,30 @@ class LyzrClient:
             'md': 'text/markdown'
         }
         
-        files = {'file': (file_name, file_obj, mime_types.get(file_extension, 'application/octet-stream'))}
-        data = {"data_parser": config['parser']}
+        # Log file size
+        try:
+            current_pos = file_obj.tell()
+            file_obj.seek(0, 2)
+            file_size = file_obj.tell()
+            file_obj.seek(current_pos)
+            logger.info(f"Indexing file '{file_name}' ({file_extension}) - Size: {file_size} bytes")
+        except:
+            logger.info(f"Indexing file '{file_name}' ({file_extension})")
         
-        return self._make_request(self.rag_base_url, 'POST', endpoint, files=files, data=data)
+        files = {
+            'file': (file_name, file_obj, mime_types.get(file_extension, 'application/octet-stream'))
+        }
+        # REMOVED data_parser - Lyzr determines parser automatically!
+        
+        response = self._make_request(self.rag_base_url, 'POST', endpoint, files=files)
+        
+        doc_count = response.get('document_count', 0)
+        logger.info(f"File '{file_name}' indexed. Document count: {doc_count}")
+        
+        if doc_count == 0:
+            logger.warning(f"WARNING: Document count is 0 after indexing file '{file_name}'. Response: {response}")
+        
+        return response
 
     def index_url(self, rag_id: str, url: str) -> Dict[str, Any]:
         if not url.startswith(('http://', 'https://')):
@@ -196,34 +243,82 @@ class LyzrClient:
             raise
 
     def index_text_content(self, rag_id: str, text_content: str, title: str = "Text Content") -> Dict[str, Any]:
+        """
+        Index text content by creating a temporary file.
+        This ensures proper multipart form encoding.
+        """
         endpoint = f"v3/train/txt/?rag_id={rag_id}"
-        files = {'file': (f'{title}.txt', text_content, 'text/plain')}
-        data = {"data_parser": "txt_parser"}
-        return self._make_request(self.rag_base_url, 'POST', endpoint, files=files, data=data)
+        
+        # Validate content
+        if not text_content or not text_content.strip():
+            logger.error("Cannot index empty text content")
+            raise LyzrAPIError("Text content is empty")
+        
+        # Create a temporary file with the text content
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp_file:
+            tmp_file.write(text_content)
+            tmp_path = tmp_file.name
+        
+        try:
+            file_size = os.path.getsize(tmp_path)
+            logger.info(f"Indexing text content: '{title}' - {len(text_content)} chars, {file_size} bytes in temp file")
+            
+            # Open the file in binary mode and send it
+            with open(tmp_path, 'rb') as file_obj:
+                # Verify file can be read
+                content_preview = file_obj.read(100)
+                file_obj.seek(0)  # Reset to beginning
+                logger.debug(f"File preview (first 100 bytes): {content_preview}")
+                
+                files = {
+                    'file': (f'{title}.txt', file_obj, 'text/plain')
+                }
+                # REMOVED data_parser - Lyzr determines parser automatically!
+                
+                logger.debug(f"Sending text file to Lyzr RAG: {rag_id}")
+                response = self._make_request(self.rag_base_url, 'POST', endpoint, files=files)
+                
+                doc_count = response.get('document_count', 0)
+                logger.info(f"Text content '{title}' indexed. Document count: {doc_count}")
+                
+                if doc_count == 0:
+                    logger.error(f"CRITICAL: Document count is 0 after indexing text content!")
+                    logger.error(f"Details - Text length: {len(text_content)}, File size: {file_size}, RAG ID: {rag_id}")
+                    logger.error(f"Response: {response}")
+                
+                return response
+        finally:
+            # Clean up the temporary file
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                    logger.debug(f"Cleaned up temp file: {tmp_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temp file {tmp_path}: {e}")
 
     def get_chat_response(self, agent_id: str, session_id: str, message: str, user_email: str, rag_id: Optional[str] = None) -> Dict[str, Any]:
         endpoint = "v3/inference/chat/"
         payload = {
-            "agent_id": agent_id, "session_id": str(session_id), "message": message,
-            "user_id": user_email, "assets": [rag_id] if rag_id else []
+            "agent_id": agent_id, 
+            "session_id": str(session_id), 
+            "message": message,
+            "user_id": user_email, 
+            "assets": [rag_id] if rag_id else []
         }
         return self._make_request(self.agent_base_url, 'POST', endpoint, json=payload)
 
     def summarize_text(self, text_to_summarize: str) -> Dict[str, Any]:
-        """
-        Summarizes text by sending it as a message to the dedicated Lyzr Summarizer Agent.
-        """
         summarizer_agent_id = settings.LYZR_SUMMARIZER_AGENT_ID
         if not summarizer_agent_id:
             logger.error("LYZR_SUMMARIZER_AGENT_ID is not configured in settings.")
             return {"summary": None, "error": "Summarizer agent is not configured."}
-
+        
         try:
             response = self.get_chat_response(
-                agent_id=summarizer_agent_id,
-                session_id=str(uuid.uuid4()),
-                message=text_to_summarize,
-                user_email="system-summarizer" 
+                agent_id=summarizer_agent_id, 
+                session_id=str(uuid.uuid4()), 
+                message=text_to_summarize, 
+                user_email="system-summarizer"
             )
             summary_text = response.get('response')
             return {"summary": summary_text}
@@ -231,11 +326,19 @@ class LyzrClient:
             logger.error(f"API call to summarizer agent failed: {e}")
             return {"summary": None, "error": str(e)}
 
-
     def test_connection(self) -> Dict[str, Any]:
         try:
             self._make_request(self.agent_base_url, 'GET', 'v3/agents/', max_retries=1)
             self._make_request(self.rag_base_url, 'GET', 'v3/rag/', max_retries=1)
-            return {"status": "healthy", "agent_api": "connected", "rag_api": "connected", "timestamp": time.time()}
+            return {
+                "status": "healthy", 
+                "agent_api": "connected", 
+                "rag_api": "connected", 
+                "timestamp": time.time()
+            }
         except Exception as e:
-            return {"status": "error", "error": str(e), "timestamp": time.time()}
+            return {
+                "status": "error", 
+                "error": str(e), 
+                "timestamp": time.time()
+            }

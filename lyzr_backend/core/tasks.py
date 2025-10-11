@@ -9,15 +9,18 @@ from .services.lyzr_client import LyzrClient, LyzrAPIError
 logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def create_lyzr_stack_task(self, agent_id: str):
-    """Create Lyzr stack with proper error handling."""
+def setup_new_agent_task(self, agent_id: str):
+    """
+    A single, robust task to create the Lyzr stack for a new agent
+    AND index its default knowledge source instruction file. This prevents race conditions.
+    """
     try:
-        agent = Agent.objects.get(id=agent_id)
+        agent = Agent.objects.select_related('knowledge_base').get(id=agent_id)
         kb = agent.knowledge_base
         client = LyzrClient()
+        logger.info(f"Starting setup for new agent {agent_id}")
 
-        logger.info(f"Creating Lyzr stack for agent {agent_id}")
-
+        # --- Part 1: Create the Lyzr RAG and Agent ---
         if not kb.lyzr_rag_id:
             logger.info(f"Creating RAG config for agent {agent_id}")
             rag_response = client.create_rag_config(kb.collection_name, agent.model)
@@ -32,9 +35,7 @@ def create_lyzr_stack_task(self, agent_id: str):
 
         if not agent.lyzr_agent_id:
             logger.info(f"Creating Lyzr agent for local agent {agent_id}")
-            
             agent_response = client.create_agent(agent=agent)
-            
             lyzr_agent_id = agent_response.get('agent_id')
             if not lyzr_agent_id:
                 raise ValueError("Agent API response missing 'agent_id' field")
@@ -43,25 +44,62 @@ def create_lyzr_stack_task(self, agent_id: str):
             logger.info(f"Successfully created Lyzr agent {lyzr_agent_id} for agent {agent_id}")
         else:
             lyzr_agent_id = agent.lyzr_agent_id
-
+            
         logger.info(f"Linking RAG {rag_id} to agent {lyzr_agent_id}")
         client.update_agent_with_rag(lyzr_agent_id, rag_id, kb.collection_name, agent)
         logger.info(f"Successfully linked RAG to agent for agent {agent_id}")
 
+        # --- Part 2: Index the Default Knowledge Source ---
+        try:
+            default_source = KnowledgeSource.objects.get(
+                knowledge_base=kb,
+                title="Default Support Instructions"
+            )
+        except KnowledgeSource.DoesNotExist:
+            logger.warning(f"Default knowledge source not found for agent {agent_id}. Skipping initial indexing.")
+            return # Setup is complete, just no default source to index
+
+        default_source.status = KnowledgeSource.IndexingStatus.INDEXING
+        default_source.save()
+
+        logger.info(f"Indexing default source {default_source.id} for RAG {kb.lyzr_rag_id}")
+        client.index_text_content(kb.lyzr_rag_id, default_source.content, default_source.title)
+        
+        default_source.status = KnowledgeSource.IndexingStatus.COMPLETED
+        default_source.save()
+        logger.info(f"Successfully indexed default source {default_source.id} for agent {agent_id}")
+
     except Agent.DoesNotExist:
-        logger.error(f"Agent {agent_id} not found")
+        logger.error(f"Agent {agent_id} not found for setup.")
         return
     except LyzrAPIError as e:
-        logger.error(f"Lyzr API error creating stack for agent {agent_id}: {e}")
+        logger.error(f"Lyzr API error during agent setup for {agent_id}: {e}")
+        # Optionally update agent status to FAILED here
         raise self.retry(exc=e)
     except Exception as exc:
-        logger.error(f"Unexpected error creating Lyzr stack for agent {agent_id}: {exc}")
+        logger.error(f"Unexpected error during agent setup for {agent_id}: {exc}")
+        # Optionally update agent status to FAILED here
         raise self.retry(exc=exc)
-    
+
+
+# This task is now effectively deprecated for initial creation but kept for safety.
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def create_lyzr_stack_task(self, agent_id: str):
+    """
+    DEPRECATED for initial agent creation. Use setup_new_agent_task.
+    Creates Lyzr stack with proper error handling.
+    """
+    logger.warning(f"DEPRECATED: create_lyzr_stack_task called for {agent_id}. Delegating to setup_new_agent_task.")
+    # For backward compatibility or accidental calls, we delegate to the new main task.
+    setup_new_agent_task.apply_async(args=[agent_id])
+
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
 def index_knowledge_source_task(self, source_id: str):
-    """Index knowledge source with better error handling, especially for URL 404s."""
+    """
+    Indexes a new knowledge source. This is used when a user adds a file, URL, etc.,
+    after the agent has already been created.
+    """
     try:
         source = KnowledgeSource.objects.select_related('knowledge_base').get(id=source_id)
         kb = source.knowledge_base
@@ -92,12 +130,10 @@ def index_knowledge_source_task(self, source_id: str):
         logger.info(f"Successfully indexed source {source.id}")
 
     except LyzrAPIError as e:
-        error_text = str(e).lower()
         if e.status_code == 404 and source.type == 'URL':
-            logger.error(f"404 Error indexing URL source {source.id}: Endpoint or URL not found.")
-            logger.error(f"URL: {source.content}, Error Detail: {e.response_data}")
+            logger.error(f"404 Error indexing URL source {source.id}: URL not found.")
             source.status = KnowledgeSource.IndexingStatus.FAILED
-            source.error_message = f"URL not found or inaccessible (404 Error). Please check the URL and try again."
+            source.error_message = "URL not found or inaccessible (404 Error). Please check the URL and try again."
             source.save()
             return
         
@@ -105,7 +141,7 @@ def index_knowledge_source_task(self, source_id: str):
         source.status = KnowledgeSource.IndexingStatus.FAILED
         source.error_message = str(e)
         source.save()
-        if e.status_code not in [404, 422]: 
+        if e.status_code not in [400, 404, 422]: 
             raise self.retry(exc=e)
                 
     except Exception as exc:
@@ -114,6 +150,9 @@ def index_knowledge_source_task(self, source_id: str):
         source.error_message = str(exc)
         source.save()
         raise self.retry(exc=exc)
+
+
+# --- OTHER TASKS (UNCHANGED) ---
 
 @shared_task
 def summarize_conversation_task(conversation_id: str):
@@ -127,16 +166,13 @@ def summarize_conversation_task(conversation_id: str):
         transcript = "\n".join([f"{msg.sender_type}: {msg.content}" for msg in conversation.messages.all()])
         client = LyzrClient()
         
-        try:
-            response = client.summarize_text(transcript)
-            summary = response.get('summary')
-            
-            if summary:
-                conversation.summary = summary
-                conversation.save()
-                logger.info(f"Successfully summarized conversation {conversation_id}")
-        except LyzrAPIError as e:
-            logger.error(f"Lyzr API error summarizing conversation {conversation_id}: {e}")
+        response = client.summarize_text(transcript)
+        summary = response.get('summary')
+        
+        if summary:
+            conversation.summary = summary
+            conversation.save()
+            logger.info(f"Successfully summarized conversation {conversation_id}")
         
     except Conversation.DoesNotExist:
         logger.error(f"Conversation {conversation_id} not found for summarization.")
@@ -149,40 +185,31 @@ def health_check_lyzr_api():
     try:
         client = LyzrClient()
         result = client.test_connection()
-        
-        if result['status'] == 'healthy':
+        if result.get('status') == 'healthy':
             logger.info("Lyzr API health check passed")
         else:
             logger.error(f"Lyzr API health check failed: {result.get('error')}")
-            
         return result
-        
     except Exception as e:
         logger.error(f"Health check failed with exception: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": time.time()
-        }
+        return {"status": "error", "error": str(e)}
 
 @shared_task
 def retry_failed_knowledge_sources():
     """Retry failed knowledge source indexing."""
     failed_sources = KnowledgeSource.objects.filter(
-        status=KnowledgeSource.IndexingStatus.FAILED
+        status=KnowledgeSource.IndexingStatus.FAILED,
+        updated_at__lt=timezone.now() - timezone.timedelta(hours=1) # Only retry sources that failed over an hour ago
     )
     
     retry_count = 0
     for source in failed_sources:
-        try:
-            if (timezone.now() - source.updated_at).seconds > 3600:
-                logger.info(f"Retrying failed knowledge source {source.id}")
-                index_knowledge_source_task.delay(source.id)
-                retry_count += 1
-        except Exception as e:
-            logger.error(f"Error queuing retry for source {source.id}: {e}")
+        logger.info(f"Retrying failed knowledge source {source.id}")
+        index_knowledge_source_task.delay(source.id)
+        retry_count += 1
     
-    logger.info(f"Queued {retry_count} failed knowledge sources for retry")
+    if retry_count > 0:
+        logger.info(f"Queued {retry_count} failed knowledge sources for retry")
     return retry_count
 
 @shared_task

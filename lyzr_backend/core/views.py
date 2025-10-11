@@ -1,12 +1,22 @@
 import logging
+import json
+import random
+from datetime import timedelta
+
 from django.db import transaction, models
 from django.utils import timezone
-from datetime import timedelta
+from django.core.cache import cache
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.contrib.auth.hashers import make_password
+from django.conf import settings
+
 from rest_framework import generics, permissions, status, viewsets, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.decorators import action
+
 from .models import User, Agent, KnowledgeBase, KnowledgeSource, Conversation, Message
 from .serializers import (
     RegisterSerializer, UserSerializer, AgentSerializer, KnowledgeSourceSerializer,
@@ -15,20 +25,15 @@ from .serializers import (
 )
 from tickets.models import Ticket
 from tickets.serializers import TicketListSerializer
-
-from .tasks import create_lyzr_stack_task, index_knowledge_source_task, update_lyzr_agent_task
-from .permissions import IsOwnerOrReadOnly, IsAgentOwner
-from django.core.cache import cache
-import json
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.contrib.auth.hashers import make_password
-from django.conf import settings
-import random
 from billing.models import Plan, Subscription, Usage
-from teams.models import Team, TeamMember,Invitation
+from teams.models import Team, TeamMember, Invitation
 from billing.serializers import SubscriptionSerializer, UsageSerializer
 from billing.utils import check_plan_limit
+from .permissions import IsOwnerOrReadOnly, IsAgentOwner
+
+# --- IMPORT THE CORRECTED TASKS ---
+from .tasks import setup_new_agent_task, index_knowledge_source_task, update_lyzr_agent_task
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +102,22 @@ class VerifyOTPView(APIView):
 
         try:
             with transaction.atomic():
-                user = User.objects.create(
+                user, created = User.objects.get_or_create(
                     email=cached_data['email'],
-                    password=cached_data['password'],
-                    full_name=cached_data['full_name'],
-                    is_active=True,
-                    is_verified=True
+                    defaults={
+                        'password': cached_data['password'],
+                        'full_name': cached_data['full_name'],
+                        'is_active': True,
+                        'is_verified': True
+                    }
                 )
+                if not created: # User existed but wasn't verified
+                    user.password = cached_data['password']
+                    user.full_name = cached_data['full_name']
+                    user.is_active = True
+                    user.is_verified = True
+                    user.save()
+
                 cache.delete(cache_key)
 
                 pending_invitations = Invitation.objects.filter(email=user.email, status=Invitation.Status.PENDING)
@@ -117,19 +131,20 @@ class VerifyOTPView(APIView):
                     inv.save()
                     logger.info(f"User {user.email} automatically joined team '{inv.team.name}' from a pending invitation.")
 
-                free_plan, _ = Plan.objects.get_or_create(
-                    name='Free',
-                    defaults={
-                        'price': 0.00,
-                        'features': {
-                            'agents': 1, 
-                            'messages': 300,
-                            'team_members': 2,
-                            'knowledge_sources': 2
+                if not hasattr(user, 'subscription'):
+                    free_plan, _ = Plan.objects.get_or_create(
+                        name='Free',
+                        defaults={
+                            'price': 0.00,
+                            'features': {
+                                'agents': 1, 
+                                'messages': 300,
+                                'team_members': 2,
+                                'knowledge_sources': 2
+                            }
                         }
-                    }
-                )
-                Subscription.objects.create(user=user, plan=free_plan, status='ACTIVE')
+                    )
+                    Subscription.objects.create(user=user, plan=free_plan, status='ACTIVE')
 
             return Response({"detail": "Account successfully created. You can now log in."}, status=status.HTTP_201_CREATED)
 
@@ -160,28 +175,50 @@ class AgentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         check_plan_limit(self.request.user, 'agents')
-        DEFAULT_KNOWLEDGE_TEXT = """
-Your primary role is to be a helpful and friendly customer support assistant.
-Key Instructions:
-1.  Greeting: Always start the conversation with a warm and friendly greeting.
-2.  Source of Truth: Your answers must be based exclusively on the information provided in the documents within your knowledge base.
-3.  Handling Unknowns: If a user asks a question and the answer is not in your documents, you MUST state that you cannot find the answer. A good response is: "I'm sorry, I can't find the answer to that in my documents. Would you like me to connect you with a support team member?" Do not invent information.
-4.  Tone: Maintain a professional, positive, and helpful tone.
-"""
+        DEFAULT_KNOWLEDGE_TEXT = """CUSTOMER SUPPORT AGENT - OPERATIONAL GUIDELINES
+
+        === SECTION 1: GREETING PROTOCOL ===
+        Your primary role is to be a helpful and friendly customer support assistant.
+        Always start the conversation with a warm and friendly greeting.
+        Make customers feel welcome and valued from the first interaction.
+
+        === SECTION 2: INFORMATION SOURCE ===
+        Your answers must be based exclusively on the information provided in the documents within your knowledge base.
+        You are the company's official representative and must only provide verified information.
+        Never make assumptions or provide information that isn't documented.
+
+        === SECTION 3: HANDLING UNKNOWN QUESTIONS ===
+        If a user asks a question and the answer is not in your documents, you MUST state that you cannot find the answer.
+        Recommended response: "I'm sorry, I can't find the answer to that in my documents. Would you like me to connect you with a support team member?"
+        Do not invent information or speculate about answers.
+
+        === SECTION 4: TONE AND COMMUNICATION ===
+        Maintain a professional, positive, and helpful tone at all times.
+        Show empathy and understanding for customer concerns.
+        Be patient and thorough in your responses.
+        Use clear, simple language that customers can easily understand.
+
+        === SECTION 5: ESCALATION PROCEDURES ===
+        If a customer is frustrated or the issue is complex, offer to escalate to a human team member.
+        Always prioritize customer satisfaction over quick resolution.
+        Recognize when human intervention would be more appropriate.
+
+        === END OF INSTRUCTIONS ===
+        """
         try:
             with transaction.atomic():
                 agent = serializer.save(user=self.request.user)
                 valid_collection_name = f"kb_coll_{agent.id.hex[:16]}"
                 kb = KnowledgeBase.objects.create(agent=agent, collection_name=valid_collection_name)
-                default_source = KnowledgeSource.objects.create(
+                KnowledgeSource.objects.create(
                     knowledge_base=kb,
                     type=KnowledgeSource.SourceType.TEXT,
                     title="Default Support Instructions",
                     content=DEFAULT_KNOWLEDGE_TEXT
                 )
 
-            create_lyzr_stack_task.delay(str(agent.id))
-            index_knowledge_source_task.delay(str(default_source.id))
+            # --- THE FIX: Call the single, combined task ---
+            setup_new_agent_task.delay(str(agent.id))
 
         except Exception as e:
             logger.error(f"Agent creation failed for user {self.request.user.email}: {e}")
@@ -209,7 +246,6 @@ Key Instructions:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-
 class KnowledgeSourceViewSet(viewsets.ModelViewSet):
     serializer_class = KnowledgeSourceSerializer
     permission_classes = [permissions.IsAuthenticated, IsAgentOwner]
@@ -220,13 +256,16 @@ class KnowledgeSourceViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         check_plan_limit(self.request.user, 'knowledge_sources')
+        
         agent_pk = self.kwargs.get('agent_pk')
         try:
             kb = KnowledgeBase.objects.get(agent_id=agent_pk, agent__user=self.request.user)
             source = serializer.save(knowledge_base=kb)
-            index_knowledge_source_task.delay(source.id)
+            index_knowledge_source_task.delay(str(source.id))
+            
         except KnowledgeBase.DoesNotExist:
             raise serializers.ValidationError("Agent or KnowledgeBase not found for this user.")
+        
 
 class PublicAgentConfigView(generics.RetrieveAPIView):
     queryset = Agent.objects.filter(is_active=True)
@@ -234,8 +273,6 @@ class PublicAgentConfigView(generics.RetrieveAPIView):
     permission_classes = (permissions.AllowAny,)
     lookup_field= 'id'
     lookup_url_kwarg = 'id'
-
-# REMOVED TicketViewSet from here
 
 class DashboardAnalyticsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -319,6 +356,5 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         Retrieves a single conversation instance, including all its messages.
         """
         instance = self.get_object()
-        # We need a more detailed serializer for this view
         serializer = ConversationDetailSerializer(instance)
         return Response(serializer.data)
