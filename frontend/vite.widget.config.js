@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: 'dist-widget',
+    outDir: 'dist',
     lib: {
       //
       //  THIS IS THE LINE YOU MUST FIX

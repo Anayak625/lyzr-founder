@@ -36,13 +36,13 @@
   // 1. Widget's CSS file
   const cssLink = document.createElement('link');
   cssLink.rel = 'stylesheet';
-  cssLink.href = `${APP_HOST}/dist-widget/widget.css`; 
+  cssLink.href = `${APP_HOST}/dist/widget.css`; 
   shadowRoot.appendChild(cssLink);
   
   // 2. Widget's JavaScript Application
   const mainScript = document.createElement('script');
   mainScript.type = 'module';
-  mainScript.src = `${APP_HOST}/dist-widget/widget.js`; // No more /assets/
+  mainScript.src = `${APP_HOST}/dist/widget.js`; // No more /assets/
   
   mainScript.onload = () => {
     if (window.mountLyzrWidget) {
