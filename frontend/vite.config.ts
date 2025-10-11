@@ -35,11 +35,15 @@ export default defineConfig(({ mode }) => {
             if (chunkInfo.name === 'widget') {
               return 'widget.js';
             }
-            
-            return 'assets/[name]-[hash].js'; 
+            return 'assets/[name]-[hash].js';
           },
           chunkFileNames: `assets/[name]-[hash].js`,
-          assetFileNames: `assets/[name]-[hash].[ext]`,
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name === 'index.css') {
+              return 'widget.css';
+            }
+            return 'assets/[name]-[hash].[ext]';
+          },
         },
       },
     },

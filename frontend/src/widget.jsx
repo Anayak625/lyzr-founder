@@ -1,12 +1,16 @@
+// src/widget.jsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { fetchPublicAgentConfig } from './api';
 import PublicWidget from './components/agent/PublicWidget';
+// We still import the CSS here so Vite knows to build it.
 import './index.css';
 
 const queryClient = new QueryClient();
 
+// This function is now simpler: it just expects a mount point and an agentId.
 window.mountLyzrWidget = (container, agentId) => {
   if (container) {
     ReactDOM.createRoot(container).render(
@@ -40,7 +44,9 @@ const WidgetApp = ({ agentId }) => {
   return <PublicWidget agentConfig={{ id: agentId, ...agentConfig }} />;
 };
 
-
+// ----------------------------------------------------------------------
+// NEW AND IMPROVED SELF-EXECUTING LOADER WITH SHADOW DOM
+// ----------------------------------------------------------------------
 if (!import.meta.env.DEV) {
     const findScriptTag = () => {
         const scripts = document.getElementsByTagName('script');
@@ -56,15 +62,30 @@ if (!import.meta.env.DEV) {
 
     if (currentScriptTag) {
         const agentId = currentScriptTag.getAttribute('data-agent-id');
+        const widgetBaseUrl = new URL(currentScriptTag.src).origin;
 
         if (agentId) {
-            // Create a container div for the widget dynamically
+            // 1. Create the host container on the main page.
             const widgetContainer = document.createElement('div');
-            widgetContainer.id = `lyzr-widget-container-${agentId}`;
+            widgetContainer.id = `lyzr-widget-host-${agentId}`;
             document.body.appendChild(widgetContainer);
 
-            // Now, call the mount function we defined above
-            window.mountLyzrWidget(widgetContainer, agentId);
+            // 2. Attach the Shadow DOM root.
+            const shadowRoot = widgetContainer.attachShadow({ mode: 'open' });
+
+            // 3. Create a link tag for our CSS and append it to the shadow root.
+            const cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = `${widgetBaseUrl}/widget.css`; // Use the predictable CSS path
+            shadowRoot.appendChild(cssLink);
+            
+            // 4. Create the actual mount point for our React app INSIDE the shadow root.
+            const appRoot = document.createElement('div');
+            appRoot.id = 'lyzr-widget-root';
+            shadowRoot.appendChild(appRoot);
+
+            // 5. Call the mount function, passing the internal appRoot as the container.
+            window.mountLyzrWidget(appRoot, agentId);
         } else {
             console.error('Lyzr Widget: The "data-agent-id" attribute is missing from the script tag.');
         }
