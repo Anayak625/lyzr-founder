@@ -13,7 +13,7 @@ The platform is built with a robust backend using Django and a modern, responsiv
 
 ### 🚀 Deployment & Demo
 
-**[Watch Demo on YouTube](https://youtu.be/f2Vd8sH0UeE?si=Qbej6OW1niTDsIKq)**
+**[Watch Demo on YouTube](https://www.youtube.com/watch?v=oXYnqh6kYi8)**
   
   [![YouTube](https://img.shields.io/badge/YouTube-Video-red?logo=youtube&logoColor=white)](https://youtu.be/f2Vd8sH0UeE?si=Qbej6OW1niTDsIKq)
 
